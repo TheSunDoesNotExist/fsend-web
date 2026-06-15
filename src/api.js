@@ -19,9 +19,24 @@ export const tokens = {
 
 const api = axios.create({ baseURL: `${API_URL}/api/v1` });
 
+const PUBLIC_AUTH_PATHS = [
+  '/auth/users/login/',
+  '/auth/users/register/',
+  '/auth/users/verify_email/',
+  '/auth/users/request_password_reset/',
+  '/auth/users/reset_password/',
+  '/auth/token/refresh/',
+];
+
+function isPublicAuthRequest(url = '') {
+  return PUBLIC_AUTH_PATHS.some((path) => url.endsWith(path) || url === path);
+}
+
 api.interceptors.request.use((cfg) => {
   const t = tokens.access;
-  if (t) cfg.headers.Authorization = `Bearer ${t}`;
+  if (t && !isPublicAuthRequest(cfg.url)) {
+    cfg.headers.Authorization = `Bearer ${t}`;
+  }
   return cfg;
 });
 
