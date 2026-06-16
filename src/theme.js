@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 export const THEMES = [
-  { key: 'matrix', label: 'matrix' },
-  { key: 'graphite', label: 'dark gray' },
-  { key: 'paper', label: 'white' },
+  { key: 'matrix', label: 'matrix', labelKey: 'themeMatrix' },
+  { key: 'graphite', label: 'dark gray', labelKey: 'themeGraphite' },
+  { key: 'paper', label: 'white', labelKey: 'themePaper' },
 ];
 
 const STORAGE_KEY = 'fsend_theme';

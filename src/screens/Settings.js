@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import api, { errText } from '../api';
 import { useAuth } from '../auth';
 import { THEMES, useTheme } from '../theme';
+import { LANGUAGES, useLang } from '../lang';
 import Avatar from '../components/Avatar';
 import { AVATAR_FRAMES, MESSAGE_FRAMES, ACCENTS } from '../frames';
 
@@ -9,6 +10,7 @@ import { AVATAR_FRAMES, MESSAGE_FRAMES, ACCENTS } from '../frames';
 export default function Settings({ onClose }) {
   const { user, reload } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { lang, setLang, t } = useLang();
   const fileRef = useRef(null);
   const [email, setEmail] = useState(user.email || '');
   const [avatarFrame, setAvatarFrame] = useState(user.avatar_frame || 'none');
@@ -37,7 +39,7 @@ export default function Settings({ onClose }) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setAvatarFile(null);
-      setErr('Выберите файл изображения');
+      setErr(t('invalidImage'));
       return;
     }
     setAvatarFile(file);
@@ -76,13 +78,12 @@ export default function Settings({ onClose }) {
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-label="Оформление профиля">
+      <div className="modal" role="dialog" aria-label={t('settingsTitle')}>
         <div className="modal-head">
-          <span className="green">~/profile/appearance</span>
-          <button className="btn ghost sm" onClick={onClose}>esc ×</button>
+          <span className="green">{t('settingsTitle')}</span>
+          <button className="btn ghost sm" onClick={onClose}>esc x</button>
         </div>
         <div className="modal-body">
-          {/* live preview */}
           <div className="preview-box">
             <Avatar
               name={user.username}
@@ -98,7 +99,7 @@ export default function Settings({ onClose }) {
                   <span className="who">{user.username}</span>
                   <span className="muted"> $ </span>
                 </div>
-                <div className="msg-content">привет, это превью сообщения</div>
+                <div className="msg-content">{t('previewMessage')}</div>
               </div>
             </div>
           </div>
@@ -120,60 +121,76 @@ export default function Settings({ onClose }) {
           </div>
 
           <div>
-            <div className="section-title">цветовая схема</div>
+            <div className="section-title">{t('language')}</div>
             <div className="row" style={{ marginTop: 8 }}>
-              {THEMES.map((t) => (
+              {LANGUAGES.map((l) => (
                 <button
-                  key={t.key}
-                  className={`chip theme-chip theme-${t.key} ${theme === t.key ? 'active' : ''}`}
-                  onClick={() => chooseTheme(t.key)}
+                  key={l.key}
+                  className={`chip ${lang === l.key ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setLang(l.key)}
                 >
-                  <span className="theme-dot" />
-                  {t.label}
+                  {l.label}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <div className="section-title">аватар</div>
+            <div className="section-title">{t('colorScheme')}</div>
             <div className="row" style={{ marginTop: 8 }}>
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={chooseAvatar} />
-              <button className="btn ghost" type="button" onClick={() => fileRef.current?.click()}>
-                choose image
-              </button>
-              <span className="muted">{avatarFile ? avatarFile.name : 'png / jpg / webp'}</span>
+              {THEMES.map((themeOption) => (
+                <button
+                  key={themeOption.key}
+                  className={`chip theme-chip theme-${themeOption.key} ${theme === themeOption.key ? 'active' : ''}`}
+                  onClick={() => chooseTheme(themeOption.key)}
+                >
+                  <span className="theme-dot" />
+                  {themeOption.labelKey ? t(themeOption.labelKey) : themeOption.label}
+                </button>
+              ))}
             </div>
           </div>
 
           <div>
-            <div className="section-title">рамка аватара</div>
+            <div className="section-title">{t('avatar')}</div>
+            <div className="row" style={{ marginTop: 8 }}>
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={chooseAvatar} />
+              <button className="btn ghost" type="button" onClick={() => fileRef.current?.click()}>
+                {t('chooseImage')}
+              </button>
+              <span className="muted">{avatarFile ? avatarFile.name : t('imageTypes')}</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="section-title">{t('avatarFrame')}</div>
             <div className="row" style={{ marginTop: 8 }}>
               {AVATAR_FRAMES.map((f) => (
                 <button key={f.key}
                         className={`chip ${avatarFrame === f.key ? 'active' : ''}`}
                         onClick={() => setAvatarFrame(f.key)}>
-                  {f.label}
+                  {f.key === 'none' ? t('noFrame') : f.label}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <div className="section-title">рамка сообщений</div>
+            <div className="section-title">{t('messageFrame')}</div>
             <div className="row" style={{ marginTop: 8 }}>
               {MESSAGE_FRAMES.map((f) => (
                 <button key={f.key}
                         className={`chip ${messageFrame === f.key ? 'active' : ''}`}
                         onClick={() => setMessageFrame(f.key)}>
-                  {f.label}
+                  {f.key === 'none' ? t('noFrame') : f.label}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <div className="section-title">акцентный цвет</div>
+            <div className="section-title">{t('accentColor')}</div>
             <div className="row" style={{ marginTop: 8 }}>
               {ACCENTS.map((c) => (
                 <span key={c}
@@ -185,10 +202,10 @@ export default function Settings({ onClose }) {
           </div>
 
           {err && <div className="err">! {err}</div>}
-          {saved && <div className="ok">✓ сохранено</div>}
+          {saved && <div className="ok">✓ {t('saved')}</div>}
           <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn ghost" onClick={onClose}>close</button>
-            <button className="btn" disabled={busy} onClick={save}>{busy ? 'saving…' : 'save'}</button>
+            <button className="btn ghost" onClick={onClose}>{t('close')}</button>
+            <button className="btn" disabled={busy} onClick={save}>{busy ? t('saving') : t('save')}</button>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api, { errText } from '../api';
 import { useAuth } from '../auth';
+import { useLang } from '../lang';
 import { useChatSocket } from '../ws';
 import { API_URL } from '../config';
 import Terminal from '../components/Terminal';
@@ -15,23 +16,27 @@ const fmtTime = (iso) => {
     : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const fmtLastSeen = (iso) => {
+const fmtLastSeen = (iso, t) => {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'unknown';
+  if (Number.isNaN(d.getTime())) return t('unknown');
   const diff = Date.now() - d.getTime();
   const min = Math.floor(diff / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min} min ago`;
+  if (min < 1) return t('justNow');
+  if (min < 60) return t('minAgo', { n: min });
   const hours = Math.floor(min / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return t('hourAgo', { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} d ago`;
+  if (days < 7) return t('dayAgo', { n: days });
   return d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
-const LIVE_REFRESH_MS = 8000;
-const HEARTBEAT_MS = 25000;
+const LIVE_REFRESH_MS = 15000;
+const HEARTBEAT_MS = 30000;
+
+function isThrottleError(e) {
+  return e?.response?.status === 429;
+}
 
 function renderContent(c) {
   if (/^https?:\/\//.test(c)) {
@@ -46,14 +51,15 @@ function renderContent(c) {
 function otherOf(conv, me) {
   return (conv.participants_info || []).find((p) => p.username !== me.username) || null;
 }
-function convTitle(conv, me) {
-  if (conv.type === 'group') return conv.name || `group#${conv.id}`;
+function convTitle(conv, me, t) {
+  if (conv.type === 'group') return conv.name || `${t('group')}#${conv.id}`;
   const o = otherOf(conv, me);
-  return o ? o.username : `direct#${conv.id}`;
+  return o ? o.username : `${t('direct')}#${conv.id}`;
 }
 
 export default function Chat() {
   const { user, logout } = useAuth();
+  const { lang, setLang, t } = useLang();
   const [convs, setConvs] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [friendRequests, setFriendRequests] = useState({ incoming: [], deferred: [], outgoing: [] });
@@ -89,7 +95,7 @@ export default function Chat() {
   }, [active, user]);
   const profileOf = useCallback((username) => people[username] || {}, [people]);
 
-  const loadConvs = useCallback(async () => {
+  const loadConvs = useCallback(async ({ quiet = false } = {}) => {
     try {
       const { data } = await api.get('/messages/conversations/');
       const items = data.results || data;
@@ -103,11 +109,13 @@ export default function Chat() {
         });
         return next;
       });
-    } catch (e) { setErr(errText(e)); }
+    } catch (e) {
+      if (!quiet && !isThrottleError(e)) setErr(errText(e));
+    }
   }, [user.username]);
   useEffect(() => { loadConvs(); }, [loadConvs]);
 
-  const loadContacts = useCallback(async () => {
+  const loadContacts = useCallback(async ({ quiet = false } = {}) => {
     try {
       const { data } = await api.get('/auth/contacts/');
       const items = data.results || data;
@@ -120,11 +128,13 @@ export default function Chat() {
         return next;
       });
       setActiveFriendId((id) => id || items[0]?.contact_info?.id || null);
-    } catch (e) { setErr(errText(e)); }
+    } catch (e) {
+      if (!quiet && !isThrottleError(e)) setErr(errText(e));
+    }
   }, []);
   useEffect(() => { loadContacts(); }, [loadContacts]);
 
-  const loadFriendRequests = useCallback(async () => {
+  const loadFriendRequests = useCallback(async ({ quiet = false } = {}) => {
     try {
       const { data } = await api.get('/auth/friend-requests/');
       setFriendRequests({
@@ -132,11 +142,13 @@ export default function Chat() {
         deferred: data.deferred || [],
         outgoing: data.outgoing || [],
       });
-    } catch (e) { setErr(errText(e)); }
+    } catch (e) {
+      if (!quiet && !isThrottleError(e)) setErr(errText(e));
+    }
   }, []);
   useEffect(() => { loadFriendRequests(); }, [loadFriendRequests]);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async ({ quiet = false, markRead = false } = {}) => {
     if (!activeId) {
       setMessages([]);
       return;
@@ -145,26 +157,29 @@ export default function Chat() {
       const { data } = await api.get(`/messages/conversations/${activeId}/messages/`, { params: { limit: 100 } });
       setMessages((data.results || []).map((m) => ({
         id: m.id,
-        who: m.sender_info?.username || 'unknown',
+        who: m.sender_info?.username || t('unknown'),
         mine: m.sender === user.id,
         content: m.content,
         ts: m.created_at,
       })));
-      api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
-      setConvs((cs) => cs.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c)));
-    } catch (e) { setErr(errText(e)); }
-  }, [activeId, user.id]);
+      if (markRead) {
+        api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
+        setConvs((cs) => cs.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c)));
+      }
+    } catch (e) {
+      if (!quiet && !isThrottleError(e)) setErr(errText(e));
+    }
+  }, [activeId, t, user.id]);
 
-  useEffect(() => { loadMessages(); }, [loadMessages]);
+  useEffect(() => { loadMessages({ markRead: true }); }, [loadMessages]);
 
   const refreshLiveData = useCallback(async () => {
     if (document.hidden) return;
     await Promise.allSettled([
-      api.post('/auth/users/heartbeat/'),
-      loadConvs(),
-      loadContacts(),
-      loadFriendRequests(),
-      activeId ? loadMessages() : Promise.resolve(),
+      loadConvs({ quiet: true }),
+      loadContacts({ quiet: true }),
+      loadFriendRequests({ quiet: true }),
+      activeId ? loadMessages({ quiet: true }) : Promise.resolve(),
     ]);
   }, [activeId, loadConvs, loadContacts, loadFriendRequests, loadMessages]);
 
@@ -306,29 +321,29 @@ export default function Chat() {
     } catch (e) { setErr(errText(e)); }
   }
 
-  const statusText = section === 'friends' ? `${user.username} • friends`
-    : !activeId ? `${user.username} • idle`
-    : status === 'on' ? `${user.username} • live`
-    : status === 'wait' ? 'connecting…' : 'disconnected';
+  const statusText = section === 'friends' ? `${user.username} • ${t('friends')}`
+    : !activeId ? `${user.username} • ${t('idle')}`
+    : status === 'on' ? `${user.username} • ${t('live')}`
+    : status === 'wait' ? t('connecting') : t('disconnected');
 
   return (
     <Terminal status={section === 'chats' && activeId ? status : 'on'} statusText={statusText}
-              title={`fsend@secure: ~/${section === 'friends' ? 'friends' : active ? convTitle(active, user) : 'chats'}`}>
+              title={`fsend@secure: ~/${section === 'friends' ? t('friends') : active ? convTitle(active, user, t) : t('chats')}`}>
       <div className={`main-shell section-${section} ${activeId ? 'has-active-chat' : ''}`}>
       <div className="sidebar">
         <div className="side-tabs">
           <button className={`side-tab ${section === 'chats' ? 'active' : ''}`} onClick={() => setSection('chats')}>
-            chats
+            {t('chats')}
           </button>
           <button className={`side-tab ${section === 'friends' ? 'active' : ''}`} onClick={() => setSection('friends')}>
-            friends
+            {t('friends')}
             {friendRequests.incoming.length > 0 && <span className="tab-badge">{friendRequests.incoming.length}</span>}
           </button>
         </div>
         <div className="sidebar-head">
-          <span className="muted">{section === 'chats' ? 'conversations' : 'friends'}</span>
+          <span className="muted">{section === 'chats' ? t('conversations') : t('friends')}</span>
           {section === 'chats' && (
-            <button className="btn ghost sm" onClick={() => setShowNew((s) => !s)}>{showNew ? '×' : '+ new'}</button>
+            <button className="btn ghost sm" onClick={() => setShowNew((s) => !s)}>{showNew ? 'x' : t('newChat')}</button>
           )}
         </div>
         {section === 'chats' && showNew && <NewChat onCreated={(c) => {
@@ -336,9 +351,9 @@ export default function Chat() {
           setActiveId(c.id); setShowNew(false);
         }} me={user} />}
         <div className="conv-list">
-          {section === 'chats' && convs.length === 0 && <div className="muted" style={{ padding: 12 }}>пусто. нажми + new</div>}
+          {section === 'chats' && convs.length === 0 && <div className="muted" style={{ padding: 12 }}>{t('emptyChats')}</div>}
           {section === 'chats' && convs.map((c) => {
-            const title = convTitle(c, user);
+            const title = convTitle(c, user, t);
             const o = otherOf(c, user);
             const isOnline = online[title] ?? o?.is_online;
             return (
@@ -361,7 +376,7 @@ export default function Chat() {
               </div>
             );
           })}
-          {section === 'friends' && friends.length === 0 && <div className="muted" style={{ padding: 12 }}>друзей пока нет</div>}
+          {section === 'friends' && friends.length === 0 && <div className="muted" style={{ padding: 12 }}>{t('friendsEmpty')}</div>}
           {section === 'friends' && friends.map((f) => (
             <div key={f.id} className={`conv ${f.id === activeFriend?.id ? 'active' : ''}`}
                  onClick={() => setActiveFriendId(f.id)}>
@@ -376,7 +391,7 @@ export default function Chat() {
                   {f.username}
                   {f.is_online && <span className="green">●</span>}
                 </div>
-                <div className="conv-last">{f.is_online ? 'online' : `last ${fmtLastSeen(f.last_seen)}`}</div>
+                <div className="conv-last">{f.is_online ? t('online') : `${t('lastSeenPrefix')} ${fmtLastSeen(f.last_seen, t)}`}</div>
               </div>
             </div>
           ))}
@@ -393,9 +408,16 @@ export default function Chat() {
             <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.username}</span>
           </div>
           <div className="row" style={{ gap: 6 }}>
-            <button className="btn ghost sm" title="оформление" onClick={() => setShowSettings(true)}>⚙</button>
-            {user.is_staff && <button className="btn ghost sm" title="админ" onClick={() => setShowAdmin(true)}>admin</button>}
-            <button className="btn ghost sm" onClick={logout}>exit</button>
+            <button
+              className="btn ghost sm"
+              title={t('language')}
+              onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}
+            >
+              {lang === 'ru' ? 'RU' : 'EN'}
+            </button>
+            <button className="btn ghost sm" title={t('appearance')} onClick={() => setShowSettings(true)}>⚙</button>
+            {user.is_staff && <button className="btn ghost sm" title={t('admin')} onClick={() => setShowAdmin(true)}>{t('admin')}</button>}
+            <button className="btn ghost sm" onClick={logout}>{t('exit')}</button>
           </div>
         </div>
       </div>
@@ -416,27 +438,26 @@ export default function Chat() {
            onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
            onDrop={onDrop}>
         {!activeId ? (
-          <div className="empty">{`выбери диалог слева
-или начни новый: [ + new ]`}</div>
+          <div className="empty">{t('chooseDialog')}</div>
         ) : (
           <>
             <div className="chat-head">
               <div className="who-block">
                 <button type="button" className="btn ghost sm mobile-back" onClick={() => setActiveId(null)}>
-                  back
+                  {t('back')}
                 </button>
                 <Avatar
-                  name={convTitle(active, user)}
+                  name={convTitle(active, user, t)}
                   accent={otherOf(active, user)?.accent_color || '#39ff14'}
                   frame={otherOf(active, user)?.avatar_frame || 'none'}
                   src={otherOf(active, user)?.avatar}
                 />
-                <span className="green">{convTitle(active, user)}</span>
+                <span className="green">{convTitle(active, user, t)}</span>
               </div>
-              <span className="muted">{messages.length} msg</span>
+              <span className="muted">{messages.length} {t('messagesShort')}</span>
             </div>
             <div className="log" ref={logRef}>
-              {messages.length === 0 && <div className="sys">— начало истории —</div>}
+              {messages.length === 0 && <div className="sys">{t('historyStart')}</div>}
               {messages.map((m) => {
                 const p = profileOf(m.who);
                 const accent = p.accent_color || '#39ff14';
@@ -456,17 +477,17 @@ export default function Chat() {
               })}
             </div>
             <div className="typing">
-              {typingUser ? <>{typingUser} печатает<span className="d">.</span><span className="d">.</span><span className="d">.</span></> : ''}
+              {typingUser ? <>{t('typing', { user: typingUser })}<span className="d">.</span><span className="d">.</span><span className="d">.</span></> : ''}
             </div>
             <form className="composer" onSubmit={submit}>
               <input ref={fileRef} type="file" multiple hidden
                      onChange={(e) => { uploadFiles(e.target.files); e.target.value = ''; }} />
-              <button type="button" className="btn ghost" title="прикрепить файл"
+              <button type="button" className="btn ghost" title={t('attachFile')}
                       onClick={() => fileRef.current?.click()}>📎</button>
               <span className="sigil">{user.username}$</span>
-              <input value={draft} autoFocus placeholder="введите сообщение и Enter"
+              <input value={draft} autoFocus placeholder={t('messagePlaceholder')}
                      onChange={(e) => onDraft(e.target.value)} />
-              <button className="btn" disabled={!draft.trim() || !activeId}>send</button>
+              <button className="btn" disabled={!draft.trim() || !activeId}>{t('send')}</button>
             </form>
           </>
         )}
@@ -482,6 +503,7 @@ export default function Chat() {
 }
 
 function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onContactsChanged, requests, onRequestsChanged }) {
+  const { t } = useLang();
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -494,7 +516,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
       try {
         const { data } = await api.get('/auth/contacts/search/', { params: { q: q.trim() } });
         if (alive) setResults(data);
-      } catch (e) { if (alive) setErr(errText(e)); }
+      } catch (e) { if (alive && !isThrottleError(e)) setErr(errText(e)); }
     }, 250);
     return () => { alive = false; clearTimeout(t); };
   }, [q]);
@@ -538,15 +560,15 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
                 <div>
                   <div className="green">{activeFriend.username}</div>
                   <div className="muted">
-                    {activeFriend.is_online ? 'online now' : `last seen ${fmtLastSeen(activeFriend.last_seen)}`}
+                    {activeFriend.is_online ? t('onlineNow') : `${t('lastSeenPrefix')} ${fmtLastSeen(activeFriend.last_seen, t)}`}
                   </div>
                 </div>
               </>
             ) : (
-              <span className="green">friends dashboard</span>
+              <span className="green">{t('friendsDashboard')}</span>
             )}
           </div>
-          {activeFriend && <button className="btn ghost sm" onClick={() => onStartChat(activeFriend)}>message</button>}
+          {activeFriend && <button className="btn ghost sm" onClick={() => onStartChat(activeFriend)}>{t('message')}</button>}
         </div>
 
         <div className="friend-panel">
@@ -567,25 +589,25 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
               </div>
               <div className="friend-stats">
                 <div className="stat">
-                  <span className="muted">status</span>
+                  <span className="muted">{t('status')}</span>
                   <strong className={activeFriend.is_online ? 'green' : 'muted'}>
-                    {activeFriend.is_online ? 'online' : 'offline'}
+                    {activeFriend.is_online ? t('online') : t('offline')}
                   </strong>
                 </div>
                 <div className="stat">
-                  <span className="muted">last seen</span>
-                  <strong>{fmtLastSeen(activeFriend.last_seen)}</strong>
+                  <span className="muted">{t('lastSeen')}</span>
+                  <strong>{fmtLastSeen(activeFriend.last_seen, t)}</strong>
                 </div>
                 <div className="stat">
-                  <span className="muted">accent</span>
+                  <span className="muted">{t('accent')}</span>
                   <strong style={{ color: activeFriend.accent_color || 'var(--green)' }}>
-                    {activeFriend.accent_color || 'default'}
+                    {activeFriend.accent_color || t('accent')}
                   </strong>
                 </div>
               </div>
             </>
           ) : (
-            <div className="empty">добавь друга через поиск справа</div>
+            <div className="empty">{t('addFriend')}</div>
           )}
         </div>
       </div>
@@ -593,7 +615,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
       <aside className="friends-rail">
         {(requests.incoming?.length > 0 || requests.deferred?.length > 0) && (
           <>
-            <div className="section-title">заявки в друзья</div>
+            <div className="section-title">{t('friendRequests')}</div>
             <div className="friend-list">
               {requests.incoming.map((req) => (
                 <div key={req.id} className="friend-request">
@@ -606,10 +628,10 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
                   />
                   <div className="request-text">
                     <span>{req.from_user_info?.username}</span>
-                    <span className="muted">wants to be friends</span>
+                    <span className="muted">{t('wantsFriend')}</span>
                   </div>
-                  <button className="btn sm" disabled={busy} onClick={() => actOnRequest(req, 'accept')}>accept</button>
-                  <button className="btn ghost sm" disabled={busy} onClick={() => actOnRequest(req, 'defer')}>defer</button>
+                  <button className="btn sm" disabled={busy} onClick={() => actOnRequest(req, 'accept')}>{t('accept')}</button>
+                  <button className="btn ghost sm" disabled={busy} onClick={() => actOnRequest(req, 'defer')}>{t('defer')}</button>
                 </div>
               ))}
               {requests.deferred.map((req) => (
@@ -623,19 +645,19 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
                   />
                   <div className="request-text">
                     <span>{req.from_user_info?.username}</span>
-                    <span className="muted">deferred</span>
+                    <span className="muted">{t('deferred')}</span>
                   </div>
-                  <button className="btn sm" disabled={busy} onClick={() => actOnRequest(req, 'accept')}>accept</button>
+                  <button className="btn sm" disabled={busy} onClick={() => actOnRequest(req, 'accept')}>{t('accept')}</button>
                 </div>
               ))}
             </div>
           </>
         )}
 
-        <div className="section-title">добавить друга</div>
+        <div className="section-title">{t('addFriend')}</div>
         <div className="field" style={{ marginTop: 8 }}>
-          <label>find:</label>
-          <input value={q} placeholder="username" onChange={(e) => setQ(e.target.value)} />
+          <label>{t('find')}:</label>
+          <input value={q} placeholder={t('friendSearchPlaceholder')} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="friend-search">
           {results
@@ -651,15 +673,15 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
                 />
                 <span>{u.username}</span>
                 {outgoingIds.has(u.id)
-                  ? <span className="muted">sent</span>
-                  : <button className="btn ghost sm" disabled={busy} onClick={() => addFriend(u)}>request</button>}
+                  ? <span className="muted">{t('sent')}</span>
+                  : <button className="btn ghost sm" disabled={busy} onClick={() => addFriend(u)}>{t('request')}</button>}
               </div>
             ))}
         </div>
 
         {requests.outgoing?.length > 0 && (
           <>
-            <div className="section-title" style={{ marginTop: 18 }}>исходящие</div>
+            <div className="section-title" style={{ marginTop: 18 }}>{t('outgoing')}</div>
             <div className="friend-list">
               {requests.outgoing.map((req) => (
                 <div key={req.id} className="friend-mini">
@@ -671,16 +693,16 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
                     size="sm"
                   />
                   <span>{req.to_user_info?.username}</span>
-                  <span className="muted">pending</span>
+                  <span className="muted">{t('pending')}</span>
                 </div>
               ))}
             </div>
           </>
         )}
 
-        <div className="section-title" style={{ marginTop: 18 }}>остальные друзья</div>
+        <div className="section-title" style={{ marginTop: 18 }}>{t('otherFriends')}</div>
         <div className="friend-list">
-          {friends.length === 0 && <div className="muted">пока пусто</div>}
+          {friends.length === 0 && <div className="muted">{t('noFriendsYet')}</div>}
           {friends.map((f) => (
             <button key={f.id} className={`friend-mini as-button ${f.id === activeFriend?.id ? 'active' : ''}`}
                     onClick={() => onSelect(f)}>
@@ -692,7 +714,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
                 size="sm"
               />
               <span>{f.username}</span>
-              <span className={f.is_online ? 'green' : 'muted'}>{f.is_online ? 'online' : fmtLastSeen(f.last_seen)}</span>
+              <span className={f.is_online ? 'green' : 'muted'}>{f.is_online ? t('online') : fmtLastSeen(f.last_seen, t)}</span>
             </button>
           ))}
         </div>
@@ -703,6 +725,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
 }
 
 function NewChat({ onCreated, me }) {
+  const { t } = useLang();
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -715,7 +738,7 @@ function NewChat({ onCreated, me }) {
       try {
         const { data } = await api.get('/auth/contacts/search/', { params: { q: q.trim() } });
         if (alive) setResults(data);
-      } catch (e) { if (alive) setErr(errText(e)); }
+      } catch (e) { if (alive && !isThrottleError(e)) setErr(errText(e)); }
     }, 250);
     return () => { alive = false; clearTimeout(t); };
   }, [q]);
@@ -732,8 +755,8 @@ function NewChat({ onCreated, me }) {
   return (
     <div style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>
       <div className="field">
-        <label>find:</label>
-        <input value={q} autoFocus placeholder="username (мин. 2 симв.)" onChange={(e) => setQ(e.target.value)} />
+        <label>{t('find')}:</label>
+        <input value={q} autoFocus placeholder={t('friendSearchNewPlaceholder')} onChange={(e) => setQ(e.target.value)} />
       </div>
       {results.filter((u) => u.username !== me.username).map((u) => (
         <div key={u.id} className="conv" onClick={() => !busy && start(u)}>
