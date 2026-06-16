@@ -30,7 +30,6 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [confirm, setConfirm] = useState('');
   const [invite, setInvite] = useState('');
-  const [token, setToken] = useState('');
   const [resetIdentifier, setResetIdentifier] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -59,22 +58,8 @@ export default function Auth() {
         password_confirm: confirm,
         invite_token: invite.trim(),
       });
-      setMsg('Аккаунт создан. Код подтверждения отправлен на email\n(в dev-режиме он выводится в лог backend).');
-      reset('verify');
-      setMsg('Аккаунт создан. Введите код подтверждения (в dev он в логе backend).');
-    } catch (e2) {
-      setErr(errText(e2));
-    } finally { setBusy(false); }
-  }
-
-  async function doVerify(e) {
-    e.preventDefault();
-    setErr(''); setMsg(''); setBusy(true);
-    try {
-      await api.post('/auth/users/verify_email/', { token: token.trim() });
-      setMsg('Email подтверждён. Теперь войдите.');
       reset('login');
-      setMsg('Email подтверждён. Теперь войдите.');
+      setMsg('Аккаунт создан. Теперь войдите.');
     } catch (e2) {
       setErr(errText(e2));
     } finally { setBusy(false); }
@@ -122,7 +107,6 @@ export default function Auth() {
         <div className="tabs">
           <span className={`tab ${tab === 'login' ? 'active' : ''}`} onClick={() => reset('login')}>login</span>
           <span className={`tab ${tab === 'register' ? 'active' : ''}`} onClick={() => reset('register')}>register</span>
-          <span className={`tab ${tab === 'verify' ? 'active' : ''}`} onClick={() => reset('verify')}>verify</span>
           <span className={`tab ${tab === 'forgot' || tab === 'reset' ? 'active' : ''}`} onClick={() => reset('forgot')}>forgot</span>
         </div>
 
@@ -187,17 +171,6 @@ export default function Auth() {
                    onChange={(e) => setNewConfirm(e.target.value)} placeholder="повтор пароля" />
             <button className="btn" disabled={busy || !resetToken || !newPassword || !newConfirm}>
               {busy ? 'updating…' : 'reset password'}
-            </button>
-          </form>
-        )}
-
-        {tab === 'verify' && (
-          <form className="form" onSubmit={doVerify}>
-            <p className="hint muted">Введите код из письма (в dev-режиме — из лога backend).</p>
-            <Field label="token:" value={token} autoFocus
-                   onChange={(e) => setToken(e.target.value)} placeholder="код подтверждения" />
-            <button className="btn" disabled={busy || !token}>
-              {busy ? 'verifying…' : 'verify email'}
             </button>
           </form>
         )}

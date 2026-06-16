@@ -60,7 +60,7 @@ function Users() {
               <td>
                 {u.is_blocked
                   ? <span className="pill off">blocked</span>
-                  : <span className="pill on">{u.is_verified ? 'active' : 'unverified'}</span>}
+                  : <span className="pill on">active</span>}
               </td>
               <td>
                 <div className="row" style={{ justifyContent: 'flex-end' }}>

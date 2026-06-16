@@ -10,6 +10,7 @@ export default function Settings({ onClose }) {
   const { user, reload } = useAuth();
   const { theme, setTheme } = useTheme();
   const fileRef = useRef(null);
+  const [email, setEmail] = useState(user.email || '');
   const [avatarFrame, setAvatarFrame] = useState(user.avatar_frame || 'none');
   const [messageFrame, setMessageFrame] = useState(user.message_frame || 'none');
   const [accent, setAccent] = useState(user.accent_color || '#39ff14');
@@ -59,6 +60,7 @@ export default function Settings({ onClose }) {
     setBusy(true); setErr(''); setSaved(false);
     try {
       const fd = new FormData();
+      fd.append('email', email.trim());
       fd.append('avatar_frame', avatarFrame);
       fd.append('message_frame', messageFrame);
       fd.append('accent_color', accent);
@@ -98,6 +100,22 @@ export default function Settings({ onClose }) {
                 </div>
                 <div className="msg-content">привет, это превью сообщения</div>
               </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="section-title">email</div>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>email:</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setSaved(false);
+                }}
+                placeholder="you@example.com"
+              />
             </div>
           </div>
 
