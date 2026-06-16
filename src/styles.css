@@ -141,6 +141,7 @@ body {
 .status-off { color: var(--red); }
 .status-wait { color: var(--amber); }
 .term-body { flex: 1; min-height: 0; display: flex; }
+.main-shell { flex: 1; min-width: 0; min-height: 0; display: flex; }
 
 /* ---------- helpers ---------- */
 .muted { color: var(--fg-dim); }
@@ -283,6 +284,7 @@ input, textarea, button, select {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
 }
 .chat-head .who-block { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mobile-back { display: none; }
 .log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 
 /* message row */
@@ -618,10 +620,195 @@ input, textarea, button, select {
   .msg-frame-scan .msg-content::after, .typing .d { animation: none !important; }
   .form > *, .msg { animation: none; opacity: 1; transform: none; }
 }
-@media (max-width: 700px) {
-  .sidebar { width: 210px; }
-  .app { padding: 6px; }
-  .friends-view { grid-template-columns: minmax(0, 1fr); }
-  .friends-rail { border-left: none; border-top: 1px solid var(--border); max-height: 42vh; }
-  .friend-stats { grid-template-columns: 1fr; }
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  body { font-size: 13px; }
+  .app {
+    height: 100dvh;
+    padding: 0;
+  }
+  .term {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  .term-bar {
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 8px 6px;
+    gap: 6px;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+  }
+  .term-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 11px;
+  }
+  .term-status {
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .term-body,
+  .main-shell {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .auth {
+    width: 100%;
+    margin: 0;
+    padding: 18px 12px;
+    justify-content: center;
+  }
+  .banner {
+    max-width: 100%;
+    overflow-x: auto;
+    font-size: 10px;
+  }
+  .tabs {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .field {
+    align-items: stretch;
+    padding: 7px 9px;
+  }
+  .field label {
+    min-width: 72px;
+  }
+
+  .main-shell.section-chats .sidebar {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+  }
+  .main-shell.section-chats .chat {
+    display: none;
+  }
+  .main-shell.section-chats.has-active-chat .sidebar {
+    display: none;
+  }
+  .main-shell.section-chats.has-active-chat .chat {
+    display: flex;
+    width: 100%;
+  }
+
+  .sidebar-head {
+    padding: 8px 10px;
+  }
+  .side-tab {
+    padding: 10px;
+  }
+  .conv {
+    padding: 10px;
+  }
+  .conv-list {
+    min-height: 0;
+  }
+
+  .mobile-back {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  .chat-head {
+    padding: 8px 10px;
+  }
+  .chat-head .who-block > .green {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .log {
+    padding: 10px;
+    gap: 10px;
+  }
+  .msg {
+    gap: 8px;
+  }
+  .msg-content {
+    max-width: 100%;
+  }
+  .composer {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    gap: 6px;
+  }
+  .composer .sigil {
+    display: none;
+  }
+  .composer .btn {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .main-shell.section-friends {
+    display: block;
+    overflow-y: auto;
+  }
+  .main-shell.section-friends .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-height: 42dvh;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .friends-view {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+  }
+  .friends-main {
+    min-height: auto;
+  }
+  .friends-rail {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    max-height: none;
+    overflow: visible;
+  }
+  .friend-panel {
+    padding: 12px;
+  }
+  .friend-hero {
+    padding: 12px;
+  }
+  .friend-stats {
+    grid-template-columns: 1fr;
+  }
+  .friend-request {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .friend-request .btn {
+    grid-column: span 1;
+  }
+
+  .overlay {
+    padding: 8px;
+    place-items: stretch;
+  }
+  .modal {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+  }
+  .modal-head {
+    padding: 10px 12px;
+  }
+  .modal-body {
+    padding: 12px;
+  }
+  .preview-box {
+    align-items: flex-start;
+  }
+  .atable {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
 }

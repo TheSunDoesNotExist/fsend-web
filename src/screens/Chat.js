@@ -30,6 +30,9 @@ const fmtLastSeen = (iso) => {
 };
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
+const LIVE_REFRESH_MS = 8000;
+const HEARTBEAT_MS = 25000;
+
 function renderContent(c) {
   if (/^https?:\/\//.test(c)) {
     if (IMG_RE.test(c.split('?')[0])) {
@@ -89,9 +92,19 @@ export default function Chat() {
   const loadConvs = useCallback(async () => {
     try {
       const { data } = await api.get('/messages/conversations/');
-      setConvs(data.results || data);
+      const items = data.results || data;
+      setConvs(items);
+      setOnline((prev) => {
+        const next = { ...prev };
+        items.forEach((conv) => {
+          (conv.participants_info || []).forEach((p) => {
+            if (p.username && p.username !== user.username) next[p.username] = p.is_online;
+          });
+        });
+        return next;
+      });
     } catch (e) { setErr(errText(e)); }
-  }, []);
+  }, [user.username]);
   useEffect(() => { loadConvs(); }, [loadConvs]);
 
   const loadContacts = useCallback(async () => {
@@ -99,6 +112,13 @@ export default function Chat() {
       const { data } = await api.get('/auth/contacts/');
       const items = data.results || data;
       setContacts(items);
+      setOnline((prev) => {
+        const next = { ...prev };
+        items.forEach((item) => {
+          if (item.contact_info?.username) next[item.contact_info.username] = item.contact_info.is_online;
+        });
+        return next;
+      });
       setActiveFriendId((id) => id || items[0]?.contact_info?.id || null);
     } catch (e) { setErr(errText(e)); }
   }, []);
@@ -116,26 +136,73 @@ export default function Chat() {
   }, []);
   useEffect(() => { loadFriendRequests(); }, [loadFriendRequests]);
 
-  useEffect(() => {
-    if (!activeId) { setMessages([]); return; }
-    let alive = true;
-    (async () => {
-      try {
-        const { data } = await api.get(`/messages/conversations/${activeId}/messages/`, { params: { limit: 100 } });
-        if (!alive) return;
-        setMessages((data.results || []).map((m) => ({
-          id: m.id,
-          who: m.sender_info?.username || 'unknown',
-          mine: m.sender === user.id,
-          content: m.content,
-          ts: m.created_at,
-        })));
-        api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
-        setConvs((cs) => cs.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c)));
-      } catch (e) { setErr(errText(e)); }
-    })();
-    return () => { alive = false; };
+  const loadMessages = useCallback(async () => {
+    if (!activeId) {
+      setMessages([]);
+      return;
+    }
+    try {
+      const { data } = await api.get(`/messages/conversations/${activeId}/messages/`, { params: { limit: 100 } });
+      setMessages((data.results || []).map((m) => ({
+        id: m.id,
+        who: m.sender_info?.username || 'unknown',
+        mine: m.sender === user.id,
+        content: m.content,
+        ts: m.created_at,
+      })));
+      api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
+      setConvs((cs) => cs.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c)));
+    } catch (e) { setErr(errText(e)); }
   }, [activeId, user.id]);
+
+  useEffect(() => { loadMessages(); }, [loadMessages]);
+
+  const refreshLiveData = useCallback(async () => {
+    if (document.hidden) return;
+    await Promise.allSettled([
+      api.post('/auth/users/heartbeat/'),
+      loadConvs(),
+      loadContacts(),
+      loadFriendRequests(),
+      activeId ? loadMessages() : Promise.resolve(),
+    ]);
+  }, [activeId, loadConvs, loadContacts, loadFriendRequests, loadMessages]);
+
+  useEffect(() => {
+    refreshLiveData();
+    const liveTimer = setInterval(refreshLiveData, LIVE_REFRESH_MS);
+    const heartbeatTimer = setInterval(() => {
+      if (!document.hidden) api.post('/auth/users/heartbeat/').catch(() => {});
+    }, HEARTBEAT_MS);
+    const onVisibility = () => {
+      if (!document.hidden) refreshLiveData();
+    };
+    window.addEventListener('focus', refreshLiveData);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(liveTimer);
+      clearInterval(heartbeatTimer);
+      window.removeEventListener('focus', refreshLiveData);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [refreshLiveData]);
+
+  const updatePresence = useCallback((username, isOnline) => {
+    setOnline((o) => ({ ...o, [username]: isOnline }));
+    setContacts((items) => items.map((item) => (
+      item.contact_info?.username === username
+        ? { ...item, contact_info: { ...item.contact_info, is_online: isOnline, last_seen: new Date().toISOString() } }
+        : item
+    )));
+    setConvs((items) => items.map((conv) => ({
+      ...conv,
+      participants_info: (conv.participants_info || []).map((p) => (
+        p.username === username
+          ? { ...p, is_online: isOnline, last_seen: new Date().toISOString() }
+          : p
+      )),
+    })));
+  }, []);
 
   const onEvent = useCallback((ev) => {
     if (ev.type === 'message') {
@@ -147,24 +214,53 @@ export default function Chat() {
     } else if (ev.type === 'user_typing') {
       if (ev.user !== user.username) setTypingUser(ev.typing ? ev.user : '');
     } else if (ev.type === 'user_status') {
-      setOnline((o) => ({ ...o, [ev.user]: ev.status === 'online' }));
+      updatePresence(ev.user, ev.status === 'online');
     }
-  }, [user.username]);
+  }, [updatePresence, user.username]);
 
   const { status, send } = useChatSocket(section === 'chats' ? activeId : null, onEvent);
+
+  const appendApiMessage = useCallback((m) => {
+    setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, {
+      id: m.id,
+      who: m.sender_info?.username || user.username,
+      mine: m.sender === user.id || m.sender_info?.username === user.username,
+      content: m.content,
+      ts: m.created_at,
+    }]);
+  }, [user.id, user.username]);
+
+  const sendMessageRest = useCallback(async (content) => {
+    const { data } = await api.post('/messages/messages/', {
+      conversation: activeId,
+      content,
+      is_encrypted: false,
+    });
+    appendApiMessage(data);
+    return data;
+  }, [activeId, appendApiMessage]);
 
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, typingUser]);
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text || !activeId) return;
+    setDraft('');
     if (send({ action: 'message', content: text, is_encrypted: false })) {
-      setDraft(''); send({ action: 'typing', typing: false });
-    } else setErr('Нет соединения с сервером');
+      send({ action: 'typing', typing: false });
+      return;
+    }
+    try {
+      await sendMessageRest(text);
+      setErr('');
+    } catch (e2) {
+      setDraft(text);
+      setErr(errText(e2));
+    }
   }
 
   async function uploadFiles(files) {
@@ -179,7 +275,10 @@ export default function Chat() {
       try {
         const { data } = await api.post('/files/shared/', fd);
         const url = data.file?.startsWith('http') ? data.file : `${API_URL}${data.file}`;
-        if (!send({ action: 'message', content: url, is_encrypted: false })) setErr('Нет соединения');
+        if (!send({ action: 'message', content: url, is_encrypted: false })) {
+          await sendMessageRest(url);
+          setErr('');
+        }
       } catch (e2) { setErr(errText(e2)); }
     }
   }
@@ -215,6 +314,7 @@ export default function Chat() {
   return (
     <Terminal status={section === 'chats' && activeId ? status : 'on'} statusText={statusText}
               title={`fsend@secure: ~/${section === 'friends' ? 'friends' : active ? convTitle(active, user) : 'chats'}`}>
+      <div className={`main-shell section-${section} ${activeId ? 'has-active-chat' : ''}`}>
       <div className="sidebar">
         <div className="side-tabs">
           <button className={`side-tab ${section === 'chats' ? 'active' : ''}`} onClick={() => setSection('chats')}>
@@ -240,6 +340,7 @@ export default function Chat() {
           {section === 'chats' && convs.map((c) => {
             const title = convTitle(c, user);
             const o = otherOf(c, user);
+            const isOnline = online[title] ?? o?.is_online;
             return (
               <div key={c.id} className={`conv ${c.id === activeId ? 'active' : ''}`}
                    onClick={() => setActiveId(c.id)}>
@@ -252,7 +353,7 @@ export default function Chat() {
                 <div className="conv-text">
                   <div className="conv-name">
                     {title}
-                    {online[title] && <span className="green">●</span>}
+                    {isOnline && <span className="green">●</span>}
                   </div>
                   <div className="conv-last">{c.last_message?.content || '—'}</div>
                 </div>
@@ -321,6 +422,9 @@ export default function Chat() {
           <>
             <div className="chat-head">
               <div className="who-block">
+                <button type="button" className="btn ghost sm mobile-back" onClick={() => setActiveId(null)}>
+                  back
+                </button>
                 <Avatar
                   name={convTitle(active, user)}
                   accent={otherOf(active, user)?.accent_color || '#39ff14'}
@@ -362,13 +466,14 @@ export default function Chat() {
               <span className="sigil">{user.username}$</span>
               <input value={draft} autoFocus placeholder="введите сообщение и Enter"
                      onChange={(e) => onDraft(e.target.value)} />
-              <button className="btn" disabled={!draft.trim() || status !== 'on'}>send</button>
+              <button className="btn" disabled={!draft.trim() || !activeId}>send</button>
             </form>
           </>
         )}
         {err && <div className="err" style={{ padding: '4px 14px' }}>! {err}</div>}
       </div>
       )}
+      </div>
 
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
