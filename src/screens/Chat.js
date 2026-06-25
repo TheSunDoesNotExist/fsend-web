@@ -100,21 +100,7 @@ function renderAttachment(att) {
     return <a href={att.url} target="_blank" rel="noreferrer"><img className="thumb" src={att.url} alt={att.name} /></a>;
   }
   if (att.kind === 'audio' || att.kind === 'voice') {
-    return (
-      <div className="attachment voice">
-        <div className="voice-orb">▶</div>
-        <div className="voice-main">
-          <div className="voice-top">
-            <span className="voice-title">Голосовушка</span>
-            <a className="voice-link" href={att.url} target="_blank" rel="noreferrer">открыть</a>
-          </div>
-          <div className="voice-wave" aria-hidden="true">
-            {Array.from({ length: 24 }).map((_, i) => <i key={i} style={{ '--h': `${22 + ((i * 17) % 46)}%` }} />)}
-          </div>
-          <audio controls src={att.url} preload="metadata" />
-        </div>
-      </div>
-    );
+    return <VoiceAttachment att={att} />;
   }
   if (att.kind === 'video_note') {
     return <div className="attachment video-note"><span>Кружочек</span><video controls playsInline src={att.url} /></div>;
@@ -123,6 +109,59 @@ function renderAttachment(att) {
     return <div className="attachment video"><video controls playsInline src={att.url} /></div>;
   }
   return <a className="attachment file" href={att.url} target="_blank" rel="noreferrer">{att.name || att.url}</a>;
+}
+
+function VoiceAttachment({ att }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  function toggle() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      audio.play().catch(() => {});
+    } else {
+      audio.pause();
+    }
+  }
+
+  return (
+    <div className={`attachment voice ${playing ? 'playing' : ''}`}>
+      <button type="button" className="voice-orb" onClick={toggle} aria-label={playing ? 'Пауза' : 'Играть'}>
+        {playing ? 'Ⅱ' : '▶'}
+      </button>
+      <div className="voice-main">
+        <div className="voice-top">
+          <span className="voice-title">Голосовушка</span>
+          <span className="voice-time">{fmtAudioTime(current)} / {fmtAudioTime(duration)}</span>
+          <a className="voice-link" href={att.url} target="_blank" rel="noreferrer">открыть</a>
+        </div>
+        <button type="button" className="voice-wave" onClick={toggle} aria-label="Переключить воспроизведение">
+          {Array.from({ length: 24 }).map((_, i) => <i key={i} style={{ '--h': `${22 + ((i * 17) % 46)}%` }} />)}
+        </button>
+        <audio
+          ref={audioRef}
+          src={att.url}
+          preload="metadata"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+          onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime || 0)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function fmtAudioTime(value) {
+  if (!Number.isFinite(value) || value <= 0) return '0:00';
+  const total = Math.floor(value);
+  const min = Math.floor(total / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return `${min}:${sec}`;
 }
 
 function renderContent(c) {
