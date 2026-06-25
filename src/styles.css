@@ -186,6 +186,15 @@ input, textarea, button, select {
 .btn.ghost { border-color: var(--border); color: var(--fg-dim); }
 .btn.ghost:hover { color: var(--fg); border-color: var(--fg-dim); background: transparent; box-shadow: none; }
 .btn.sm { padding: 3px 9px; font-size: 12px; }
+.btn.rec {
+  color: var(--red);
+  border-color: var(--red);
+  animation: recpulse 1.2s var(--ease-in-out) infinite;
+}
+@keyframes recpulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent); }
+}
 
 .err { color: var(--red); white-space: pre-wrap; }
 .ok  { color: var(--green); }
@@ -301,6 +310,49 @@ input, textarea, button, select {
 .msg-content {
   white-space: pre-wrap; word-break: break-word;
   padding: 2px 0;
+}
+.attachment {
+  display: inline-flex;
+  max-width: min(420px, 100%);
+}
+.attachment.voice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(320px, 80vw);
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+}
+.attachment.voice span {
+  color: var(--amber);
+  font-size: 12px;
+}
+.attachment.voice audio {
+  width: 100%;
+}
+.attachment.video video {
+  max-width: min(420px, 78vw);
+  max-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #000;
+}
+.attachment.video-note video {
+  width: min(240px, 62vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #000;
+  border: 2px solid var(--green);
+  box-shadow: 0 0 18px var(--shadow);
+}
+.attachment.file {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
 }
 .sys { color: var(--fg-dim); font-style: italic; }
 

@@ -31,6 +31,7 @@ const fmtLastSeen = (iso, t) => {
 };
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
+const ATTACH_PREFIX = 'fsend://attachment/';
 const LIVE_REFRESH_MS = 15000;
 const HEARTBEAT_MS = 30000;
 
@@ -38,7 +39,58 @@ function isThrottleError(e) {
   return e?.response?.status === 429;
 }
 
+function fileTypeOf(file) {
+  const mime = file.type || '';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'other';
+}
+
+function fileUrl(file) {
+  if (!file?.file) return '';
+  return file.file.startsWith('http') ? file.file : `${API_URL}${file.file}`;
+}
+
+function makeAttachmentContent(file, kind = file.file_type || 'other') {
+  return `${ATTACH_PREFIX}${encodeURIComponent(JSON.stringify({
+    id: file.id,
+    url: fileUrl(file),
+    name: file.file_name || 'file',
+    kind,
+    mime: file.mime_type || '',
+    size: file.file_size || 0,
+  }))}`;
+}
+
+function parseAttachment(c) {
+  if (!c?.startsWith?.(ATTACH_PREFIX)) return null;
+  try {
+    return JSON.parse(decodeURIComponent(c.slice(ATTACH_PREFIX.length)));
+  } catch {
+    return null;
+  }
+}
+
+function renderAttachment(att) {
+  if (att.kind === 'image') {
+    return <a href={att.url} target="_blank" rel="noreferrer"><img className="thumb" src={att.url} alt={att.name} /></a>;
+  }
+  if (att.kind === 'audio' || att.kind === 'voice') {
+    return <div className="attachment voice"><span>голосовое</span><audio controls src={att.url} /></div>;
+  }
+  if (att.kind === 'video_note') {
+    return <div className="attachment video-note"><video controls playsInline src={att.url} /></div>;
+  }
+  if (att.kind === 'video') {
+    return <div className="attachment video"><video controls playsInline src={att.url} /></div>;
+  }
+  return <a className="attachment file" href={att.url} target="_blank" rel="noreferrer">{att.name || att.url}</a>;
+}
+
 function renderContent(c) {
+  const attachment = parseAttachment(c);
+  if (attachment) return renderAttachment(attachment);
   if (/^https?:\/\//.test(c)) {
     if (IMG_RE.test(c.split('?')[0])) {
       return <a href={c} target="_blank" rel="noreferrer"><img className="thumb" src={c} alt="" /></a>;
@@ -74,9 +126,12 @@ export default function Chat() {
   const [showNew, setShowNew] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [recording, setRecording] = useState(null);
   const logRef = useRef(null);
   const typingTimer = useRef(null);
   const fileRef = useRef(null);
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
   const [dragging, setDragging] = useState(false);
 
   const active = useMemo(() => convs.find((c) => c.id === activeId), [convs, activeId]);
@@ -255,6 +310,15 @@ export default function Chat() {
     return data;
   }, [activeId, appendApiMessage]);
 
+  const sendContent = useCallback(async (content) => {
+    if (send({ action: 'message', content, is_encrypted: false })) {
+      setErr('');
+      return;
+    }
+    await sendMessageRest(content);
+    setErr('');
+  }, [send, sendMessageRest]);
+
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -281,21 +345,71 @@ export default function Chat() {
   async function uploadFiles(files) {
     if (!activeId || !files?.length) return;
     for (const f of files) {
+      await uploadBlob(f, f.name, fileTypeOf(f), f.type || '');
+    }
+  }
+
+  async function uploadBlob(blob, name, kind, mime) {
+    if (!activeId) return;
       const fd = new FormData();
       fd.append('conversation', activeId);
-      fd.append('file', f);
-      fd.append('file_name', f.name);
-      fd.append('mime_type', f.type || '');
-      fd.append('file_type', (f.type || '').startsWith('image/') ? 'image' : 'other');
+    fd.append('file', blob, name);
+    fd.append('file_name', name);
+    fd.append('mime_type', mime || blob.type || '');
+    fd.append('file_type', kind === 'voice' ? 'audio' : kind === 'video_note' ? 'video' : kind);
       try {
         const { data } = await api.post('/files/shared/', fd);
-        const url = data.file?.startsWith('http') ? data.file : `${API_URL}${data.file}`;
-        if (!send({ action: 'message', content: url, is_encrypted: false })) {
-          await sendMessageRest(url);
-          setErr('');
-        }
+      await sendContent(makeAttachmentContent(data, kind));
       } catch (e2) { setErr(errText(e2)); }
+  }
+
+  async function startRecording(kind) {
+    if (!activeId || recording) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setErr('Запись не поддерживается этим браузером');
+      return;
     }
+    try {
+      const isVideo = kind === 'video_note';
+      const stream = await navigator.mediaDevices.getUserMedia(isVideo
+        ? { audio: true, video: { facingMode: 'user', width: { ideal: 360 }, height: { ideal: 360 } } }
+        : { audio: true });
+      const mime = isVideo
+        ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm')
+        : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm');
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream, {
+        mimeType: mime,
+        audioBitsPerSecond: 48000,
+        videoBitsPerSecond: isVideo ? 420000 : undefined,
+      });
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (e) => {
+        if (e.data?.size) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const cleanMime = mime.split(';')[0];
+        const blob = new Blob(chunksRef.current, { type: cleanMime });
+        setRecording(null);
+        if (blob.size > 0) {
+          await uploadBlob(blob, `${kind}-${Date.now()}.webm`, kind, cleanMime);
+        }
+      };
+      recorder.start();
+      setRecording(kind);
+      window.setTimeout(() => {
+        if (recorder.state === 'recording') recorder.stop();
+      }, isVideo ? 30000 : 120000);
+    } catch (e) {
+      setRecording(null);
+      setErr(e?.message || 'Не удалось начать запись');
+    }
+  }
+
+  function stopRecording() {
+    const recorder = recorderRef.current;
+    if (recorder?.state === 'recording') recorder.stop();
   }
 
   function onDrop(e) {
@@ -484,6 +598,16 @@ export default function Chat() {
                      onChange={(e) => { uploadFiles(e.target.files); e.target.value = ''; }} />
               <button type="button" className="btn ghost" title={t('attachFile')}
                       onClick={() => fileRef.current?.click()}>📎</button>
+              <button type="button" className={`btn ghost ${recording === 'voice' ? 'rec' : ''}`}
+                      title="Голосовое"
+                      onClick={() => recording === 'voice' ? stopRecording() : startRecording('voice')}>
+                {recording === 'voice' ? '■' : '🎙'}
+              </button>
+              <button type="button" className={`btn ghost ${recording === 'video_note' ? 'rec' : ''}`}
+                      title="Кружочек"
+                      onClick={() => recording === 'video_note' ? stopRecording() : startRecording('video_note')}>
+                {recording === 'video_note' ? '■' : '◉'}
+              </button>
               <span className="sigil">{user.username}$</span>
               <input value={draft} autoFocus placeholder={t('messagePlaceholder')}
                      onChange={(e) => onDraft(e.target.value)} />
