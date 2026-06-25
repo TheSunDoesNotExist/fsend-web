@@ -316,21 +316,75 @@ input, textarea, button, select {
   max-width: min(420px, 100%);
 }
 .attachment.voice {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  width: min(360px, 82vw);
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--green) 34%, var(--border));
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--green) 9%, transparent), transparent 54%),
+    var(--bg-input);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 8%, transparent);
+}
+.voice-orb {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  background: var(--green);
+  box-shadow: 0 0 18px var(--shadow);
+  font-size: 13px;
+  padding-left: 2px;
+}
+.voice-main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: min(320px, 80vw);
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-input);
 }
-.attachment.voice span {
+.voice-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.voice-title {
   color: var(--amber);
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-link {
+  color: var(--fg-dim);
+  font-size: 11px;
+  text-decoration: none;
+}
+.voice-link:hover { color: var(--cyan); }
+.voice-wave {
+  height: 34px;
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  align-items: center;
+  gap: 3px;
+  padding: 2px 0;
+}
+.voice-wave i {
+  display: block;
+  height: var(--h);
+  min-height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(to top, var(--green-soft), var(--green));
+  opacity: 0.78;
 }
 .attachment.voice audio {
   width: 100%;
+  height: 28px;
+  filter: saturate(0.8);
 }
 .attachment.video video {
   max-width: min(420px, 78vw);
@@ -347,6 +401,16 @@ input, textarea, button, select {
   background: #000;
   border: 2px solid var(--green);
   box-shadow: 0 0 18px var(--shadow);
+}
+.attachment.video-note {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.attachment.video-note span {
+  color: var(--amber);
+  font-size: 12px;
 }
 .attachment.file {
   padding: 8px 10px;

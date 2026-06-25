@@ -64,12 +64,35 @@ function makeAttachmentContent(file, kind = file.file_type || 'other') {
 }
 
 function parseAttachment(c) {
-  if (!c?.startsWith?.(ATTACH_PREFIX)) return null;
+  const index = typeof c === 'string' ? c.indexOf(ATTACH_PREFIX) : -1;
+  if (index < 0) return null;
   try {
-    return JSON.parse(decodeURIComponent(c.slice(ATTACH_PREFIX.length)));
+    let payload = c.slice(index + ATTACH_PREFIX.length);
+    for (let i = 0; i < 2; i += 1) {
+      const decoded = decodeURIComponent(payload);
+      if (decoded === payload) break;
+      payload = decoded;
+    }
+    return JSON.parse(payload);
   } catch {
     return null;
   }
+}
+
+function attachmentLabel(att) {
+  if (!att) return '';
+  if (att.kind === 'voice' || att.kind === 'audio') return 'Голосовушка';
+  if (att.kind === 'video_note') return 'Кружочек';
+  if (att.kind === 'video') return 'Видео';
+  if (att.kind === 'image') return 'Фото';
+  return att.name || 'Файл';
+}
+
+function messagePreview(content) {
+  const attachment = parseAttachment(content);
+  if (attachment) return attachmentLabel(attachment);
+  if (typeof content === 'string' && content.includes(ATTACH_PREFIX)) return 'Вложение';
+  return content || '—';
 }
 
 function renderAttachment(att) {
@@ -77,10 +100,24 @@ function renderAttachment(att) {
     return <a href={att.url} target="_blank" rel="noreferrer"><img className="thumb" src={att.url} alt={att.name} /></a>;
   }
   if (att.kind === 'audio' || att.kind === 'voice') {
-    return <div className="attachment voice"><span>голосовое</span><audio controls src={att.url} /></div>;
+    return (
+      <div className="attachment voice">
+        <div className="voice-orb">▶</div>
+        <div className="voice-main">
+          <div className="voice-top">
+            <span className="voice-title">Голосовушка</span>
+            <a className="voice-link" href={att.url} target="_blank" rel="noreferrer">открыть</a>
+          </div>
+          <div className="voice-wave" aria-hidden="true">
+            {Array.from({ length: 24 }).map((_, i) => <i key={i} style={{ '--h': `${22 + ((i * 17) % 46)}%` }} />)}
+          </div>
+          <audio controls src={att.url} preload="metadata" />
+        </div>
+      </div>
+    );
   }
   if (att.kind === 'video_note') {
-    return <div className="attachment video-note"><video controls playsInline src={att.url} /></div>;
+    return <div className="attachment video-note"><span>Кружочек</span><video controls playsInline src={att.url} /></div>;
   }
   if (att.kind === 'video') {
     return <div className="attachment video"><video controls playsInline src={att.url} /></div>;
@@ -484,7 +521,7 @@ export default function Chat() {
                     {title}
                     {isOnline && <span className="green">●</span>}
                   </div>
-                  <div className="conv-last">{c.last_message?.content || '—'}</div>
+                  <div className="conv-last">{messagePreview(c.last_message?.content)}</div>
                 </div>
                 {c.unread_count > 0 && c.id !== activeId && <span className="badge">{c.unread_count}</span>}
               </div>
