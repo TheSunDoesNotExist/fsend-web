@@ -185,13 +185,93 @@ function convTitle(conv, me, t) {
   return o ? o.username : `${t('direct')}#${conv.id}`;
 }
 
+function SignalBars() {
+  return <span className="signal-bars" aria-hidden="true"><i /><i /><i /></span>;
+}
+
+function TileCard({ tone = 'paper', eyebrow, title, copy, className = '', onClick, children }) {
+  const Tag = onClick ? 'button' : 'section';
+  return (
+    <Tag type={onClick ? 'button' : undefined} className={`tile nav-tile ${tone} ${className}`} onClick={onClick}>
+      <span className="eyebrow">{eyebrow}</span>
+      <strong>{title}</strong>
+      {copy && <span className="tile-copy">{copy}</span>}
+      {children}
+    </Tag>
+  );
+}
+
+function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew, lang, setLang, logout }) {
+  const unread = convs.reduce((total, conv) => total + (conv.unread_count || 0), 0);
+  const onlineCount = contacts.filter((item) => item.contact_info?.is_online).length;
+  const now = new Date();
+  return (
+    <main className="global-menu">
+      <section className="tile paper identity-tile">
+        <span className="eyebrow">WELCOME BACK / VERIFIED SESSION</span>
+        <h1>HELLO /<br />{user.username}</h1>
+        <time>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+        <span className="tile-copy">{now.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
+      </section>
+      <TileCard tone="lavender" eyebrow={`01 / ${unread} UNREAD`} title="CHATS"
+        copy={`${convs.length} active rooms · direct encrypted delivery.`} className="menu-chats" onClick={() => onOpen('chats')} />
+      <TileCard tone="lime" eyebrow="02 / PEOPLE" title="FRIENDS"
+        copy={`${contacts.length} contacts · ${onlineCount} online · ${requests.incoming.length} requests.`} className="menu-friends" onClick={() => onOpen('friends')} />
+      <TileCard tone="sand" eyebrow="03 / INTELLIGENCE" title="INFO"
+        copy="Dialogue summaries, decisions and follow-ups from important rooms." className="menu-info" onClick={() => onOpen('info')} />
+      <TileCard tone="paper" eyebrow="04 / CONTROL" title="SETTINGS"
+        copy="Privacy, appearance, notifications and storage." className="menu-settings" onClick={onSettings} />
+      <TileCard tone="paper" eyebrow="QUICK ACTION" title="NEW ROOM +"
+        copy="Start a direct encrypted conversation." className="menu-new" onClick={onNew} />
+      <TileCard tone="lime" eyebrow="SECURITY" title="02 TRUSTED"
+        copy="Phone · Desktop · Keys verified now." className="menu-devices" onClick={onSettings}><SignalBars /></TileCard>
+      <TileCard tone="lavender" eyebrow="ACCOUNT / ONLINE" title="YOU"
+        copy={`ID ${String(user.id).padStart(4, '0')} · Direct route active.`} className="menu-profile" onClick={onSettings}>
+        <i className="presence-pulse" />
+      </TileCard>
+      <div className="menu-actions">
+        <button className="tile-control" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>{lang.toUpperCase()} / LANGUAGE</button>
+        <button className="tile-control" onClick={logout}>EXIT / SESSION</button>
+      </div>
+    </main>
+  );
+}
+
+function InfoDashboard({ convs, contacts, requests }) {
+  const active = convs.filter((conv) => conv.last_message).slice(0, 5);
+  const unread = convs.reduce((total, conv) => total + (conv.unread_count || 0), 0);
+  return (
+    <main className="info-dashboard">
+      <TileCard tone="lavender" eyebrow="INTELLIGENCE / LOCAL" title="DIALOGUE SUMMARIES"
+        copy={`${active.length} important rooms condensed locally on your device.`} />
+      <TileCard tone="paper" eyebrow="TODAY / DECISIONS" title="WHAT CHANGED" className="info-changed">
+        <ol className="summary-list">
+          <li>{unread} unread messages need attention.</li>
+          <li>{contacts.filter((item) => item.contact_info?.is_online).length} trusted contacts are online.</li>
+          <li>{requests.incoming.length} friend requests are waiting.</li>
+        </ol>
+      </TileCard>
+      <TileCard tone="lime" eyebrow="FOLLOW-UPS" title="NEXT ACTIONS"
+        copy={unread ? 'Review unread rooms · verify decisions · reply.' : 'No urgent replies. Your rooms are up to date.'} />
+      <TileCard tone="paper" eyebrow="PRIVACY" title="LOCAL AI" copy="Summaries remain on this device. No dialogue content is uploaded." />
+      <TileCard tone="sand" eyebrow="SOURCE" title={`${active.length} DIALOGUES`}>
+        <ul className="source-list">{active.map((conv) => <li key={conv.id}>{conv.name || conv.participants_info?.[0]?.username || `ROOM ${conv.id}`}</li>)}</ul>
+      </TileCard>
+      <TileCard tone="lavender" eyebrow="EXPORT" title="COPY REPORT +" copy="Plain text · no metadata." onClick={() => {
+        const report = active.map((conv) => `${conv.name || `Room ${conv.id}`}: ${messagePreview(conv.last_message?.content)}`).join('\n');
+        navigator.clipboard?.writeText(report);
+      }} />
+    </main>
+  );
+}
+
 export default function Chat() {
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLang();
   const [convs, setConvs] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [friendRequests, setFriendRequests] = useState({ incoming: [], deferred: [], outgoing: [] });
-  const [section, setSection] = useState('chats');
+  const [section, setSection] = useState('home');
   const [activeId, setActiveId] = useState(null);
   const [activeFriendId, setActiveFriendId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -516,9 +596,33 @@ export default function Chat() {
     : status === 'on' ? `${user.username} • ${t('live')}`
     : status === 'wait' ? t('connecting') : t('disconnected');
 
+  const shellStatusText = section === 'home' ? `${user.username} · HOME`
+    : section === 'info' ? `${user.username} · LOCAL`
+    : statusText;
+  const routeTitle = section === 'home' ? 'HOME / GLOBAL MENU'
+    : section === 'info' ? 'HOME / INFO'
+    : section === 'friends' ? `HOME / ${t('friends').toUpperCase()}`
+    : active ? `CHAT / ${convTitle(active, user, t).toUpperCase()}` : 'HOME / CHATS';
+
   return (
-    <Terminal status={section === 'chats' && activeId ? status : 'on'} statusText={statusText}
-              title={`fsend@secure: ~/${section === 'friends' ? t('friends') : active ? convTitle(active, user, t) : t('chats')}`}>
+    <Terminal status={section === 'chats' && activeId ? status : 'on'} statusText={shellStatusText}
+              title={routeTitle} onHome={() => { setSection('home'); setActiveId(null); }}>
+      {section === 'home' ? (
+        <GlobalMenu
+          user={user}
+          convs={convs}
+          contacts={contacts}
+          requests={friendRequests}
+          onOpen={setSection}
+          onSettings={() => setShowSettings(true)}
+          onNew={() => { setSection('chats'); setShowNew(true); }}
+          lang={lang}
+          setLang={setLang}
+          logout={logout}
+        />
+      ) : section === 'info' ? (
+        <InfoDashboard convs={convs} contacts={contacts} requests={friendRequests} />
+      ) : (
       <div className={`main-shell section-${section} ${activeId ? 'has-active-chat' : ''}`}>
       <div className="sidebar">
         <div className="side-tabs">
@@ -695,6 +799,7 @@ export default function Chat() {
       </div>
       )}
       </div>
+      )}
 
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
