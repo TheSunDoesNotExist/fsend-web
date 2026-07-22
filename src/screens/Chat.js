@@ -189,6 +189,11 @@ function SignalBars() {
   return <span className="signal-bars" aria-hidden="true"><i /><i /><i /></span>;
 }
 
+function preference(key, fallback = true) {
+  try { return JSON.parse(localStorage.getItem('fsend_preferences') || '{}')[key] ?? fallback; }
+  catch { return fallback; }
+}
+
 function TileCard({ tone = 'paper', eyebrow, title, copy, className = '', onClick, children }) {
   const Tag = onClick ? 'button' : 'section';
   return (
@@ -224,8 +229,8 @@ function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew
         copy={ru ? 'Приватность, оформление, уведомления и хранилище.' : 'Privacy, appearance, notifications and storage.'} className="menu-settings" onClick={onSettings} />
       <TileCard tone="paper" eyebrow={ru ? 'БЫСТРОЕ ДЕЙСТВИЕ' : 'QUICK ACTION'} title={ru ? 'НОВЫЙ ЧАТ +' : 'NEW ROOM +'}
         copy={ru ? 'Начать защищённый прямой диалог.' : 'Start a direct encrypted conversation.'} className="menu-new" onClick={onNew} />
-      <TileCard tone="lime" eyebrow={ru ? 'БЕЗОПАСНОСТЬ' : 'SECURITY'} title={ru ? '02 ДОВЕРЕННЫХ' : '02 TRUSTED'}
-        copy={ru ? 'Телефон · Компьютер · Ключи проверены.' : 'Phone · Desktop · Keys verified now.'} className="menu-devices" onClick={onSettings}><SignalBars /></TileCard>
+      <TileCard tone="lime" eyebrow={ru ? 'БЕЗОПАСНОСТЬ' : 'SECURITY'} title={ru ? 'УСТРОЙСТВА' : 'DEVICES'}
+        copy={ru ? 'Активные входы и проверенные сессии.' : 'Active sign-ins and verified sessions.'} className="menu-devices" onClick={() => onOpen('devices')}><SignalBars /></TileCard>
       <TileCard tone="lavender" eyebrow={ru ? 'АККАУНТ / В СЕТИ' : 'ACCOUNT / ONLINE'} title={ru ? 'ВЫ' : 'YOU'}
         copy={ru ? `ID ${String(user.id).padStart(4, '0')} · Прямое подключение активно.` : `ID ${String(user.id).padStart(4, '0')} · Direct route active.`} className="menu-profile" onClick={onSettings}>
         <i className="presence-pulse" />
@@ -238,30 +243,65 @@ function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew
   );
 }
 
-function InfoDashboard({ convs, contacts, requests }) {
+function InfoDashboard({ convs, contacts, requests, lang }) {
   const active = convs.filter((conv) => conv.last_message).slice(0, 5);
   const unread = convs.reduce((total, conv) => total + (conv.unread_count || 0), 0);
+  const ru = lang === 'ru';
+  const online = contacts.filter((item) => item.contact_info?.is_online).length;
   return (
     <main className="info-dashboard">
-      <TileCard tone="lavender" eyebrow="INTELLIGENCE / LOCAL" title="DIALOGUE SUMMARIES"
-        copy={`${active.length} important rooms condensed locally on your device.`} />
-      <TileCard tone="paper" eyebrow="TODAY / DECISIONS" title="WHAT CHANGED" className="info-changed">
+      <TileCard tone="lavender" eyebrow={ru ? 'СВОДКА / ЛОКАЛЬНО' : 'INTELLIGENCE / LOCAL'} title={ru ? 'САММАРИ ДИАЛОГОВ' : 'DIALOGUE SUMMARIES'}
+        copy={ru ? `${active.length} важных диалогов обработано локально на устройстве.` : `${active.length} important rooms condensed locally on your device.`} />
+      <TileCard tone="paper" eyebrow={ru ? 'СЕГОДНЯ / РЕШЕНИЯ' : 'TODAY / DECISIONS'} title={ru ? 'ЧТО ИЗМЕНИЛОСЬ' : 'WHAT CHANGED'} className="info-changed">
         <ol className="summary-list">
-          <li>{unread} unread messages need attention.</li>
-          <li>{contacts.filter((item) => item.contact_info?.is_online).length} trusted contacts are online.</li>
-          <li>{requests.incoming.length} friend requests are waiting.</li>
+          <li>{ru ? `${unread} непрочитанных сообщений требуют внимания.` : `${unread} unread messages need attention.`}</li>
+          <li>{ru ? `${online} доверенных контактов сейчас в сети.` : `${online} trusted contacts are online.`}</li>
+          <li>{ru ? `${requests.incoming.length} заявок в друзья ожидают ответа.` : `${requests.incoming.length} friend requests are waiting.`}</li>
         </ol>
       </TileCard>
-      <TileCard tone="lime" eyebrow="FOLLOW-UPS" title="NEXT ACTIONS"
-        copy={unread ? 'Review unread rooms · verify decisions · reply.' : 'No urgent replies. Your rooms are up to date.'} />
-      <TileCard tone="paper" eyebrow="PRIVACY" title="LOCAL AI" copy="Summaries remain on this device. No dialogue content is uploaded." />
-      <TileCard tone="sand" eyebrow="SOURCE" title={`${active.length} DIALOGUES`}>
-        <ul className="source-list">{active.map((conv) => <li key={conv.id}>{conv.name || conv.participants_info?.[0]?.username || `ROOM ${conv.id}`}</li>)}</ul>
+      <TileCard tone="lime" eyebrow={ru ? 'СЛЕДУЮЩИЕ ШАГИ' : 'FOLLOW-UPS'} title={ru ? 'ДЕЙСТВИЯ' : 'NEXT ACTIONS'}
+        copy={unread ? (ru ? 'Проверить непрочитанные · сверить решения · ответить.' : 'Review unread rooms · verify decisions · reply.') : (ru ? 'Срочных ответов нет. Все диалоги просмотрены.' : 'No urgent replies. Your rooms are up to date.')} />
+      <TileCard tone="paper" eyebrow={ru ? 'ПРИВАТНОСТЬ' : 'PRIVACY'} title={ru ? 'ЛОКАЛЬНЫЙ ИИ' : 'LOCAL AI'} copy={ru ? 'Саммари остаются на устройстве. Содержимое диалогов не загружается.' : 'Summaries remain on this device. No dialogue content is uploaded.'} />
+      <TileCard tone="sand" eyebrow={ru ? 'ИСТОЧНИК' : 'SOURCE'} title={`${active.length} ${ru ? 'ДИАЛОГОВ' : 'DIALOGUES'}`}>
+        <ul className="source-list">{active.map((conv) => <li key={conv.id}>{conv.name || conv.participants_info?.[0]?.username || `${ru ? 'ЧАТ' : 'ROOM'} ${conv.id}`}</li>)}</ul>
       </TileCard>
-      <TileCard tone="lavender" eyebrow="EXPORT" title="COPY REPORT +" copy="Plain text · no metadata." onClick={() => {
-        const report = active.map((conv) => `${conv.name || `Room ${conv.id}`}: ${messagePreview(conv.last_message?.content)}`).join('\n');
+      <TileCard tone="lavender" eyebrow={ru ? 'ЭКСПОРТ' : 'EXPORT'} title={ru ? 'КОПИРОВАТЬ ОТЧЁТ +' : 'COPY REPORT +'} copy={ru ? 'Обычный текст · без метаданных.' : 'Plain text · no metadata.'} onClick={() => {
+        const report = active.map((conv) => `${conv.name || `${ru ? 'Чат' : 'Room'} ${conv.id}`}: ${messagePreview(conv.last_message?.content)}`).join('\n');
         navigator.clipboard?.writeText(report);
       }} />
+    </main>
+  );
+}
+
+function DevicesPanel({ lang }) {
+  const ru = lang === 'ru';
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const { data } = await api.get('/auth/users/devices/');
+      setDevices(data.results || data);
+    } catch (e) { setError(errText(e)); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <main className="devices-dashboard">
+      <TileCard tone="lime" eyebrow={ru ? 'БЕЗОПАСНОСТЬ / СЕССИИ' : 'SECURITY / SESSIONS'} title={ru ? 'ВАШИ УСТРОЙСТВА' : 'YOUR DEVICES'}
+        copy={ru ? 'Здесь показаны устройства, на которых выполнен вход в Fsend.' : 'Devices currently signed in to your Fsend account.'}>
+        <button className="tile-control devices-refresh" onClick={load}>{ru ? 'ОБНОВИТЬ' : 'REFRESH'}</button>
+      </TileCard>
+      {loading && <TileCard tone="paper" eyebrow="FSEND" title={ru ? 'ЗАГРУЗКА…' : 'LOADING…'} />}
+      {error && <TileCard tone="paper" eyebrow={ru ? 'ОШИБКА' : 'ERROR'} title="!" copy={error} />}
+      {!loading && !error && devices.length === 0 && <TileCard tone="paper" eyebrow={ru ? 'УСТРОЙСТВА / 00' : 'DEVICES / 00'} title={ru ? 'СПИСОК ПУСТ' : 'NO DEVICES'} copy={ru ? 'Текущее устройство появится после следующего обновления связи.' : 'This device will appear after the next heartbeat.'} />}
+      {devices.map((device, index) => (
+        <TileCard key={device.id} tone={device.is_current ? 'lavender' : index % 2 ? 'sand' : 'paper'}
+          eyebrow={`${String(index + 1).padStart(2, '0')} / ${device.is_current ? (ru ? 'ТЕКУЩЕЕ' : 'CURRENT') : device.is_active ? (ru ? 'АКТИВНО' : 'ACTIVE') : (ru ? 'НЕ В СЕТИ' : 'OFFLINE')}`}
+          title={device.name}
+          copy={`${device.platform === 'web' && ru ? 'веб' : device.platform || (ru ? 'неизвестная платформа' : 'unknown platform')} · ${device.ip_address || (ru ? 'IP скрыт' : 'IP hidden')} · ${new Date(device.last_seen).toLocaleString(ru ? 'ru-RU' : 'en-US')}`} />
+      ))}
     </main>
   );
 }
@@ -281,6 +321,7 @@ export default function Chat() {
   const [online, setOnline] = useState({});
   const [err, setErr] = useState('');
   const [showNew, setShowNew] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [recording, setRecording] = useState(null);
@@ -374,14 +415,14 @@ export default function Chat() {
         content: m.content,
         ts: m.created_at,
       })));
-      if (markRead) {
+      if (markRead && (active?.is_secret || preference('readReceipts'))) {
         api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
         setConvs((cs) => cs.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c)));
       }
     } catch (e) {
       if (!quiet && !isThrottleError(e)) setErr(errText(e));
     }
-  }, [activeId, t, user.id]);
+  }, [active?.is_secret, activeId, t, user.id]);
 
   useEffect(() => { loadMessages({ markRead: true }); }, [loadMessages]);
 
@@ -399,7 +440,7 @@ export default function Chat() {
     refreshLiveData();
     const liveTimer = setInterval(refreshLiveData, LIVE_REFRESH_MS);
     const heartbeatTimer = setInterval(() => {
-      if (!document.hidden) api.post('/auth/users/heartbeat/').catch(() => {});
+      if (!document.hidden && preference('onlineStatus')) api.post('/auth/users/heartbeat/').catch(() => {});
     }, HEARTBEAT_MS);
     const onVisibility = () => {
       if (!document.hidden) refreshLiveData();
@@ -438,12 +479,18 @@ export default function Chat() {
         content: ev.content, ts: ev.timestamp,
       }]);
       if (ev.sender !== user.username) setTypingUser('');
+      if (ev.sender !== user.username && activeId && !document.hidden && (active?.is_secret || preference('readReceipts'))) {
+        api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
+      }
+      if (ev.sender !== user.username && document.hidden && preference('desktopNotifications') && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(ev.sender, { body: preference('messagePreview') ? ev.content : (lang === 'ru' ? 'Новое сообщение' : 'New message') });
+      }
     } else if (ev.type === 'user_typing') {
       if (ev.user !== user.username) setTypingUser(ev.typing ? ev.user : '');
     } else if (ev.type === 'user_status') {
       updatePresence(ev.user, ev.status === 'online');
     }
-  }, [updatePresence, user.username]);
+  }, [active?.is_secret, activeId, lang, updatePresence, user.username]);
 
   const { status, send } = useChatSocket(section === 'chats' ? activeId : null, onEvent);
 
@@ -461,20 +508,20 @@ export default function Chat() {
     const { data } = await api.post('/messages/messages/', {
       conversation: activeId,
       content,
-      is_encrypted: false,
+      is_encrypted: !!active?.is_secret,
     });
     appendApiMessage(data);
     return data;
-  }, [activeId, appendApiMessage]);
+  }, [active?.is_secret, activeId, appendApiMessage]);
 
   const sendContent = useCallback(async (content) => {
-    if (send({ action: 'message', content, is_encrypted: false })) {
+    if (send({ action: 'message', content, is_encrypted: !!active?.is_secret })) {
       setErr('');
       return;
     }
     await sendMessageRest(content);
     setErr('');
-  }, [send, sendMessageRest]);
+  }, [active?.is_secret, send, sendMessageRest]);
 
   useEffect(() => {
     const el = logRef.current;
@@ -486,7 +533,7 @@ export default function Chat() {
     const text = draft.trim();
     if (!text || !activeId) return;
     setDraft('');
-    if (send({ action: 'message', content: text, is_encrypted: false })) {
+    if (send({ action: 'message', content: text, is_encrypted: !!active?.is_secret })) {
       send({ action: 'typing', typing: false });
       return;
     }
@@ -576,6 +623,7 @@ export default function Chat() {
 
   function onDraft(v) {
     setDraft(v);
+    if (!preference('typingStatus')) return;
     send({ action: 'typing', typing: true });
     clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => send({ action: 'typing', typing: false }), 1500);
@@ -597,13 +645,15 @@ export default function Chat() {
     : status === 'on' ? `${user.username} • ${t('live')}`
     : status === 'wait' ? t('connecting') : t('disconnected');
 
-  const shellStatusText = section === 'home' ? `${user.username} · HOME`
-    : section === 'info' ? `${user.username} · LOCAL`
+  const shellStatusText = section === 'home' ? `${user.username} · ${lang === 'ru' ? 'ГЛАВНАЯ' : 'HOME'}`
+    : section === 'info' ? `${user.username} · ${lang === 'ru' ? 'ЛОКАЛЬНО' : 'LOCAL'}`
+    : section === 'devices' ? `${user.username} · ${lang === 'ru' ? 'УСТРОЙСТВА' : 'DEVICES'}`
     : statusText;
-  const routeTitle = section === 'home' ? 'HOME / GLOBAL MENU'
-    : section === 'info' ? 'HOME / INFO'
-    : section === 'friends' ? `HOME / ${t('friends').toUpperCase()}`
-    : active ? `CHAT / ${convTitle(active, user, t).toUpperCase()}` : 'HOME / CHATS';
+  const routeTitle = section === 'home' ? (lang === 'ru' ? 'ГЛАВНАЯ / МЕНЮ' : 'HOME / GLOBAL MENU')
+    : section === 'info' ? (lang === 'ru' ? 'ГЛАВНАЯ / ИНФО' : 'HOME / INFO')
+    : section === 'devices' ? (lang === 'ru' ? 'ГЛАВНАЯ / УСТРОЙСТВА' : 'HOME / DEVICES')
+    : section === 'friends' ? `${lang === 'ru' ? 'ГЛАВНАЯ' : 'HOME'} / ${t('friends').toUpperCase()}`
+    : active ? `${lang === 'ru' ? 'ЧАТ' : 'CHAT'} / ${convTitle(active, user, t).toUpperCase()}` : (lang === 'ru' ? 'ГЛАВНАЯ / ЧАТЫ' : 'HOME / CHATS');
 
   return (
     <Terminal status={section === 'chats' && activeId ? status : 'on'} statusText={shellStatusText}
@@ -616,13 +666,15 @@ export default function Chat() {
           requests={friendRequests}
           onOpen={setSection}
           onSettings={() => setShowSettings(true)}
-          onNew={() => { setSection('chats'); setShowNew(true); }}
+          onNew={() => setShowSecret(true)}
           lang={lang}
           setLang={setLang}
           logout={logout}
         />
       ) : section === 'info' ? (
-        <InfoDashboard convs={convs} contacts={contacts} requests={friendRequests} />
+        <InfoDashboard convs={convs} contacts={contacts} requests={friendRequests} lang={lang} />
+      ) : section === 'devices' ? (
+        <DevicesPanel lang={lang} />
       ) : (
       <div className={`main-shell section-${section} ${activeId ? 'has-active-chat' : ''}`}>
       <div className="sidebar">
@@ -662,6 +714,7 @@ export default function Chat() {
                 />
                 <div className="conv-text">
                   <div className="conv-name">
+                    {c.is_secret && <span title={lang === 'ru' ? 'секретный чат' : 'secret chat'}>◈ </span>}
                     {title}
                     {isOnline && <span className="green">●</span>}
                   </div>
@@ -723,6 +776,7 @@ export default function Chat() {
           activeFriend={activeFriend}
           onSelect={(f) => setActiveFriendId(f.id)}
           onStartChat={startDirectChat}
+          sharedRooms={convs.filter((c) => otherOf(c, user)?.id === activeFriend?.id).map((c) => convTitle(c, user, t))}
           onContactsChanged={loadContacts}
           requests={friendRequests}
           onRequestsChanged={loadFriendRequests}
@@ -747,9 +801,11 @@ export default function Chat() {
                   frame={otherOf(active, user)?.avatar_frame || 'none'}
                   src={otherOf(active, user)?.avatar}
                 />
-                <span className="green">{convTitle(active, user, t)}</span>
+                <span className="green">{active.is_secret && '◈ '}{convTitle(active, user, t)}</span>
               </div>
-              <span className="muted">{messages.length} {t('messagesShort')}</span>
+              <span className="muted">{active.is_secret
+                ? (lang === 'ru' ? 'секретный · удаление через 5 мин после прочтения' : 'secret · deletes 5 min after reading')
+                : `${messages.length} ${t('messagesShort')}`}</span>
             </div>
             <div className="log" ref={logRef}>
               {messages.length === 0 && <div className="sys">{t('historyStart')}</div>}
@@ -804,12 +860,24 @@ export default function Chat() {
 
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
+      {showSecret && <SecretChatModal
+        friends={friends}
+        onClose={() => setShowSecret(false)}
+        onCreated={(conversation) => {
+          setConvs((items) => items.some((item) => item.id === conversation.id) ? items : [conversation, ...items]);
+          setSection('chats');
+          setActiveId(conversation.id);
+          setShowSecret(false);
+        }}
+      />}
     </Terminal>
   );
 }
 
-function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onContactsChanged, requests, onRequestsChanged }) {
-  const { t } = useLang();
+function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, sharedRooms, onContactsChanged, requests, onRequestsChanged }) {
+  const { t, lang } = useLang();
+  const ru = lang === 'ru';
+  const tr = (russian, english) => ru ? russian : english;
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -849,183 +917,138 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, onCont
   }
 
   const outgoingIds = new Set((requests.outgoing || []).map((r) => r.to_user));
+  const pendingRequests = [...(requests.incoming || []), ...(requests.deferred || [])];
+  const onlineCount = friends.filter((friend) => friend.is_online).length;
 
   return (
     <div className="friends-view">
-      <div className="friends-main">
-        <div className="chat-head">
-          <div className="who-block">
-            {activeFriend ? (
-              <>
-                <Avatar
-                  name={activeFriend.username}
-                  accent={activeFriend.accent_color || '#39ff14'}
-                  frame={activeFriend.avatar_frame || 'none'}
-                  src={activeFriend.avatar}
-                />
-                <div>
-                  <div className="green">{activeFriend.username}</div>
-                  <div className="muted">
-                    {activeFriend.is_online ? t('onlineNow') : `${t('lastSeenPrefix')} ${fmtLastSeen(activeFriend.last_seen, t)}`}
+      <section className="friends-directory-column">
+        <div className="friend-tile tone-lime directory-summary">
+          <span className="friend-tile-label">{tr('ЛЮДИ', 'PEOPLE')} / {String(friends.length).padStart(2, '0')}</span>
+          <strong><span className="friends-desktop-copy">{tr('ДИРЕКТОРИЯ', 'DIRECTORY')}</span><span className="friends-mobile-copy">{tr('ДРУЗЬЯ', 'FRIENDS')}</span></strong>
+          <p>{onlineCount} {tr('в сети', 'online')} · {pendingRequests.length} {tr('заявок', 'requests')}.</p>
+        </div>
+        {friends.length === 0 && (
+          <div className="friend-tile tone-paper"><span className="friend-tile-label">{tr('КОНТАКТЫ / 00', 'CONTACTS / 00')}</span><strong>{tr('ПОКА ПУСТО', 'EMPTY')}</strong><p>{tr('Добавьте первого доверенного контакта.', 'Add your first trusted contact.')}</p></div>
+        )}
+        {friends.map((friend, index) => (
+          <button key={friend.id} className={`friend-tile friend-person tone-${index % 3 === 0 ? 'lavender' : index % 3 === 1 ? 'paper' : 'cream'} ${friend.id === activeFriend?.id ? 'selected' : ''}`} onClick={() => onSelect(friend)}>
+            <span className="friend-tile-label">{friend.is_online ? tr('В СЕТИ', 'ONLINE') : tr('НЕ В СЕТИ', 'OFFLINE')}</span>
+            <strong>{friend.username}</strong>
+            <p>{friend.is_online ? tr('Проверенный контакт · сейчас в сети.', 'Verified contact · online now.') : `${tr('Последняя активность', 'Last seen')} ${fmtLastSeen(friend.last_seen, t)}.`}</p>
+          </button>
+        ))}
+      </section>
+
+      <section className="friends-detail-column">
+        <div className="friend-tile tone-paper friend-selected-card">
+          <span className="friend-tile-label">{tr('ВЫБРАННЫЙ КОНТАКТ', 'SELECTED PERSON')}</span>
+          <strong>{activeFriend?.username || tr('ВЫБЕРИТЕ ДРУГА', 'SELECT A FRIEND')}</strong>
+          <p>{activeFriend ? tr('Проверенный контакт. Прямые сообщения защищены; ключ и рамки профиля сохранены.', 'Trusted contact. Direct messages are protected; profile key and frames are preserved.') : tr('Выберите плитку слева, чтобы открыть контакт.', 'Choose a tile on the left to open a contact.')}</p>
+        </div>
+        <button className="friend-tile tone-lavender friend-actions-card" disabled={!activeFriend} onClick={() => activeFriend && onStartChat(activeFriend)}>
+          <span className="friend-tile-label">{tr('ДЕЙСТВИЯ', 'ACTIONS')}</span>
+          <strong>{tr('СООБЩЕНИЕ / ЧАТ', 'MESSAGE / CHAT')}</strong>
+          <p>{tr('Открыть прямой зашифрованный диалог.', 'Open the direct encrypted room.')}</p>
+        </button>
+        <div className="friend-tile tone-cream friend-shared-card">
+          <span className="friend-tile-label">{tr('ОБЩИЕ', 'SHARED')}</span>
+          <strong>{String(sharedRooms.length).padStart(2, '0')} {tr('КОМНАТ', 'ROOMS')}</strong>
+          <p>{sharedRooms.length ? sharedRooms.slice(0, 3).join(' · ') : tr('Общих диалогов пока нет.', 'No shared rooms yet.')}</p>
+        </div>
+      </section>
+
+      <aside className="friends-tools-column">
+        <div className="friend-tile tone-lime friend-request-card">
+          <span className="friend-tile-label">{tr('ЗАЯВКИ', 'REQUESTS')} / {String(pendingRequests.length).padStart(2, '0')}</span>
+          {pendingRequests.length === 0 ? <><strong>{tr('НЕТ НОВЫХ', 'ALL CLEAR')}</strong><p>{tr('Новых заявок нет.', 'No pending requests.')}</p></> : (
+            <div className="friend-request-stack">
+              {pendingRequests.map((req) => (
+                <div className="friend-request-tile" key={req.id}>
+                  <strong>+ {req.from_user_info?.username || `#${req.from_user}`}</strong>
+                  <div className="friend-request-actions">
+                    <button disabled={busy} onClick={() => actOnRequest(req, 'accept')}>{t('accept')}</button>
+                    {req.status !== 'deferred' && <button disabled={busy} onClick={() => actOnRequest(req, 'defer')}>{t('defer')}</button>}
                   </div>
                 </div>
-              </>
-            ) : (
-              <span className="green">{t('friendsDashboard')}</span>
-            )}
-          </div>
-          {activeFriend && <button className="btn ghost sm" onClick={() => onStartChat(activeFriend)}>{t('message')}</button>}
-        </div>
-
-        <div className="friend-panel">
-          {activeFriend ? (
-            <>
-              <div className="friend-hero">
-                <Avatar
-                  name={activeFriend.username}
-                  accent={activeFriend.accent_color || '#39ff14'}
-                  frame={activeFriend.avatar_frame || 'none'}
-                  src={activeFriend.avatar}
-                  size="lg"
-                />
-                <div>
-                  <div className="friend-name">{activeFriend.username}</div>
-                  <div className="muted">{activeFriend.email}</div>
-                </div>
-              </div>
-              <div className="friend-stats">
-                <div className="stat">
-                  <span className="muted">{t('status')}</span>
-                  <strong className={activeFriend.is_online ? 'green' : 'muted'}>
-                    {activeFriend.is_online ? t('online') : t('offline')}
-                  </strong>
-                </div>
-                <div className="stat">
-                  <span className="muted">{t('lastSeen')}</span>
-                  <strong>{fmtLastSeen(activeFriend.last_seen, t)}</strong>
-                </div>
-                <div className="stat">
-                  <span className="muted">{t('accent')}</span>
-                  <strong style={{ color: activeFriend.accent_color || 'var(--green)' }}>
-                    {activeFriend.accent_color || t('accent')}
-                  </strong>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="empty">{t('addFriend')}</div>
+              ))}
+            </div>
           )}
         </div>
-      </div>
 
-      <aside className="friends-rail">
-        {(requests.incoming?.length > 0 || requests.deferred?.length > 0) && (
-          <>
-            <div className="section-title">{t('friendRequests')}</div>
-            <div className="friend-list">
-              {requests.incoming.map((req) => (
-                <div key={req.id} className="friend-request">
-                  <Avatar
-                    name={req.from_user_info?.username}
-                    accent={req.from_user_info?.accent_color || '#39ff14'}
-                    frame={req.from_user_info?.avatar_frame || 'none'}
-                    src={req.from_user_info?.avatar}
-                    size="sm"
-                  />
-                  <div className="request-text">
-                    <span>{req.from_user_info?.username}</span>
-                    <span className="muted">{t('wantsFriend')}</span>
-                  </div>
-                  <button className="btn sm" disabled={busy} onClick={() => actOnRequest(req, 'accept')}>{t('accept')}</button>
-                  <button className="btn ghost sm" disabled={busy} onClick={() => actOnRequest(req, 'defer')}>{t('defer')}</button>
-                </div>
-              ))}
-              {requests.deferred.map((req) => (
-                <div key={req.id} className="friend-request deferred">
-                  <Avatar
-                    name={req.from_user_info?.username}
-                    accent={req.from_user_info?.accent_color || '#39ff14'}
-                    frame={req.from_user_info?.avatar_frame || 'none'}
-                    src={req.from_user_info?.avatar}
-                    size="sm"
-                  />
-                  <div className="request-text">
-                    <span>{req.from_user_info?.username}</span>
-                    <span className="muted">{t('deferred')}</span>
-                  </div>
-                  <button className="btn sm" disabled={busy} onClick={() => actOnRequest(req, 'accept')}>{t('accept')}</button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="section-title">{t('addFriend')}</div>
-        <div className="field" style={{ marginTop: 8 }}>
-          <label>{t('find')}:</label>
-          <input value={q} placeholder={t('friendSearchPlaceholder')} onChange={(e) => setQ(e.target.value)} />
-        </div>
-        <div className="friend-search">
-          {results
-            .filter((u) => !friends.some((f) => f.id === u.id))
-            .map((u) => (
-              <div key={u.id} className="friend-mini">
-                <Avatar
-                  name={u.username}
-                  accent={u.accent_color || '#39ff14'}
-                  frame={u.avatar_frame || 'none'}
-                  src={u.avatar}
-                  size="sm"
-                />
-                <span>{u.username}</span>
-                {outgoingIds.has(u.id)
-                  ? <span className="muted">{t('sent')}</span>
-                  : <button className="btn ghost sm" disabled={busy} onClick={() => addFriend(u)}>{t('request')}</button>}
-              </div>
+        <div className="friend-tile tone-paper friend-add-card">
+          <span className="friend-tile-label">{tr('ДОБАВИТЬ ДРУГА', 'ADD FRIEND')}</span>
+          <strong>{tr('ПОИСК +', 'SEARCH +')}</strong>
+          <div className="friend-search-field">
+            <input value={q} placeholder={t('friendSearchNewPlaceholder')} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="friend-search-results">
+            {results.filter((u) => !friends.some((f) => f.id === u.id)).map((u) => (
+              <button key={u.id} disabled={busy || outgoingIds.has(u.id)} onClick={() => addFriend(u)}>
+                <span>{u.username}</span><span>{outgoingIds.has(u.id) ? t('sent') : '+'}</span>
+              </button>
             ))}
+          </div>
         </div>
 
-        {requests.outgoing?.length > 0 && (
-          <>
-            <div className="section-title" style={{ marginTop: 18 }}>{t('outgoing')}</div>
-            <div className="friend-list">
-              {requests.outgoing.map((req) => (
-                <div key={req.id} className="friend-mini">
-                  <Avatar
-                    name={req.to_user_info?.username}
-                    accent={req.to_user_info?.accent_color || '#39ff14'}
-                    frame={req.to_user_info?.avatar_frame || 'none'}
-                    src={req.to_user_info?.avatar}
-                    size="sm"
-                  />
-                  <span>{req.to_user_info?.username}</span>
-                  <span className="muted">{t('pending')}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="section-title" style={{ marginTop: 18 }}>{t('otherFriends')}</div>
-        <div className="friend-list">
-          {friends.length === 0 && <div className="muted">{t('noFriendsYet')}</div>}
-          {friends.map((f) => (
-            <button key={f.id} className={`friend-mini as-button ${f.id === activeFriend?.id ? 'active' : ''}`}
-                    onClick={() => onSelect(f)}>
-              <Avatar
-                name={f.username}
-                accent={f.accent_color || '#39ff14'}
-                frame={f.avatar_frame || 'none'}
-                src={f.avatar}
-                size="sm"
-              />
-              <span>{f.username}</span>
-              <span className={f.is_online ? 'green' : 'muted'}>{f.is_online ? t('online') : fmtLastSeen(f.last_seen, t)}</span>
-            </button>
-          ))}
+        <div className="friend-tile tone-lavender friend-trust-card">
+          <span className="friend-tile-label">{tr('ДОВЕРИЕ', 'TRUST')}</span>
+          <strong>{String(friends.length).padStart(2, '0')} {tr('ПРОВЕРЕНО', 'VERIFIED')}</strong>
+          <p>{requests.outgoing?.length || 0} {tr('ожидают подтверждения.', 'pending review.')}</p>
+          {err && <span className="err">! {err}</span>}
         </div>
-        {err && <div className="err">! {err}</div>}
       </aside>
+    </div>
+  );
+}
+
+function SecretChatModal({ friends, onClose, onCreated }) {
+  const { lang } = useLang();
+  const ru = lang === 'ru';
+  const [busyId, setBusyId] = useState(null);
+  const [err, setErr] = useState('');
+
+  async function start(friend) {
+    setBusyId(friend.id); setErr('');
+    try {
+      const { data } = await api.post('/messages/conversations/create_direct/', {
+        contact_id: friend.id,
+        secret: true,
+      });
+      onCreated(data);
+    } catch (e) { setErr(errText(e)); }
+    finally { setBusyId(null); }
+  }
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal secret-chat-modal" role="dialog" aria-modal="true" aria-label={ru ? 'Новый секретный чат' : 'New secret chat'}>
+        <div className="modal-head">
+          <span>{ru ? 'НОВЫЙ СЕКРЕТНЫЙ ЧАТ' : 'NEW SECRET CHAT'}</span>
+          <button className="btn ghost sm" onClick={onClose}>esc ×</button>
+        </div>
+        <div className="modal-body">
+          <section className="tile lime secret-explainer">
+            <span className="eyebrow">{ru ? 'АВТОУДАЛЕНИЕ / 05:00' : 'AUTO DELETE / 05:00'}</span>
+            <strong>{ru ? 'ТАЙМЕР ПОСЛЕ ПРОЧТЕНИЯ' : 'TIMER AFTER READING'}</strong>
+            <span className="tile-copy">{ru
+              ? 'Отсчёт начинается только когда получатель прочитает сообщение. Непрочитанные сообщения не удаляются.'
+              : 'The countdown starts only when the recipient reads a message. Unread messages do not expire.'}</span>
+          </section>
+          <div className="section-title">{ru ? 'ВЫБЕРИТЕ ДРУГА' : 'CHOOSE A FRIEND'}</div>
+          <div className="secret-friend-list">
+            {friends.length === 0 && <div className="muted">{ru ? 'Сначала добавьте пользователя в друзья.' : 'Add someone as a friend first.'}</div>}
+            {friends.map((friend) => (
+              <button key={friend.id} className="secret-friend" disabled={busyId !== null} onClick={() => start(friend)}>
+                <Avatar name={friend.username} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} />
+                <span><strong>{friend.username}</strong><small>{friend.is_online ? (ru ? 'в сети' : 'online') : (ru ? 'не в сети' : 'offline')}</small></span>
+                <b>{busyId === friend.id ? '…' : '◈'}</b>
+              </button>
+            ))}
+          </div>
+          {err && <div className="err">! {err}</div>}
+        </div>
+      </div>
     </div>
   );
 }

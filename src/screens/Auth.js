@@ -131,14 +131,15 @@ export default function Auth() {
       </form>
     ),
   };
+  const ru = lang === 'ru';
 
   return (
-    <Terminal status="off" statusText={t('offline')} title="ENTRY / AUTH">
+    <Terminal status="off" statusText={t('offline')} title={ru ? 'ВХОД / АВТОРИЗАЦИЯ' : 'ENTRY / AUTH'}>
       <main className="auth-workspace">
         <section className="auth-primary tile paper">
-          <div className="eyebrow">SECURE SESSION / LOGIN</div>
-          <h1>ENTER<br />FSEND</h1>
-          <p className="tile-copy">Private messaging with direct delivery, local-first summaries and verified devices.</p>
+          <div className="eyebrow">{ru ? 'ЗАЩИЩЁННАЯ СЕССИЯ / ВХОД' : 'SECURE SESSION / LOGIN'}</div>
+          <h1>{ru ? 'ВОЙТИ В' : 'ENTER'}<br />FSEND</h1>
+          <p className="tile-copy">{ru ? 'Приватные сообщения, локальные саммари и проверенные устройства.' : 'Private messaging with direct delivery, local-first summaries and verified devices.'}</p>
           <div className="tabs" role="tablist">
             <button className={`tab ${tab === 'login' ? 'active' : ''}`} onClick={() => reset('login')}>{t('login')}</button>
             <button className={`tab ${tab === 'register' ? 'active' : ''}`} onClick={() => reset('register')}>{t('register')}</button>
@@ -151,14 +152,14 @@ export default function Auth() {
         </section>
         <aside className="auth-side">
           <section className="tile sand pair-tile">
-            <div className="eyebrow">NEW DEVICE / OPTIONAL</div>
-            <h2>PAIR WITH CODE</h2>
+            <div className="eyebrow">{ru ? 'НОВОЕ УСТРОЙСТВО / НЕОБЯЗАТЕЛЬНО' : 'NEW DEVICE / OPTIONAL'}</div>
+            <h2>{ru ? 'ПОДКЛЮЧИТЬ ПО КОДУ' : 'PAIR WITH CODE'}</h2>
             <strong>RIV · MINT · 42</strong>
-            <p className="tile-copy">Open Fsend on another device and enter this code.</p>
+            <p className="tile-copy">{ru ? 'Откройте Fsend на другом устройстве и введите этот код.' : 'Open Fsend on another device and enter this code.'}</p>
           </section>
           <div className="status-grid">
-            <section className="tile lime status-card"><div className="eyebrow">SECURITY</div><h2>E2E</h2><span>LOCAL KEYS</span><span className="signal-bars"><i /><i /><i /></span></section>
-            <section className="tile paper status-card network-card"><div className="eyebrow">NETWORK</div><h2>READY</h2><span>24 MS</span><LatencyGraph /></section>
+            <section className="tile lime status-card"><div className="eyebrow">{ru ? 'БЕЗОПАСНОСТЬ' : 'SECURITY'}</div><h2>E2E</h2><span>{ru ? 'ЛОКАЛЬНЫЕ КЛЮЧИ' : 'LOCAL KEYS'}</span><span className="signal-bars"><i /><i /><i /></span></section>
+            <section className="tile paper status-card network-card"><div className="eyebrow">{ru ? 'СЕТЬ' : 'NETWORK'}</div><h2>{ru ? 'ГОТОВО' : 'READY'}</h2><span>{ru ? '24 МС' : '24 MS'}</span><LatencyGraph /></section>
           </div>
         </aside>
       </main>

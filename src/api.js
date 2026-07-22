@@ -3,6 +3,16 @@ import { API_URL } from './config';
 
 const ACCESS = 'fsend_access';
 const REFRESH = 'fsend_refresh';
+const DEVICE = 'fsend_device_id';
+
+function deviceId() {
+  let id = localStorage.getItem(DEVICE);
+  if (!id) {
+    id = window.crypto?.randomUUID?.() || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(DEVICE, id);
+  }
+  return id;
+}
 
 export const tokens = {
   get access() { return localStorage.getItem(ACCESS); },
@@ -33,6 +43,9 @@ function isPublicAuthRequest(url = '') {
 }
 
 api.interceptors.request.use((cfg) => {
+  cfg.headers['X-Device-Id'] = deviceId();
+  cfg.headers['X-Device-Name'] = navigator.platform || 'Web';
+  cfg.headers['X-Device-Platform'] = 'web';
   const t = tokens.access;
   if (t && !isPublicAuthRequest(cfg.url)) {
     cfg.headers.Authorization = `Bearer ${t}`;

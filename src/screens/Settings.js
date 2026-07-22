@@ -6,6 +6,29 @@ import { LANGUAGES, useLang } from '../lang';
 import Avatar from '../components/Avatar';
 import { AVATAR_FRAMES, MESSAGE_FRAMES, ACCENTS } from '../frames';
 
+const DEFAULT_PREFS = {
+  desktopNotifications: true,
+  sounds: true,
+  messagePreview: true,
+  callNotifications: true,
+  readReceipts: true,
+  typingStatus: true,
+  onlineStatus: true,
+  autoImages: true,
+  autoFiles: false,
+  cacheLimit: '512',
+};
+
+function SettingToggle({ label, hint, checked, onChange }) {
+  return (
+    <label className="setting-toggle">
+      <span><strong>{label}</strong><small>{hint}</small></span>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <i aria-hidden="true" />
+    </label>
+  );
+}
+
 // Модалка оформления профиля: рамка аватара, рамка сообщений, акцент.
 export default function Settings({ onClose }) {
   const { user, reload } = useAuth();
@@ -13,6 +36,7 @@ export default function Settings({ onClose }) {
   const { lang, setLang, t } = useLang();
   const fileRef = useRef(null);
   const [email, setEmail] = useState(user.email || '');
+  const [bio, setBio] = useState(user.bio || '');
   const [avatarFrame, setAvatarFrame] = useState(user.avatar_frame || 'none');
   const [messageFrame, setMessageFrame] = useState(user.message_frame || 'none');
   const [accent, setAccent] = useState(user.accent_color || '#39ff14');
@@ -21,6 +45,14 @@ export default function Settings({ onClose }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [saved, setSaved] = useState(false);
+  const [prefs, setPrefs] = useState(() => {
+    try { return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('fsend_preferences') || '{}') }; }
+    catch { return DEFAULT_PREFS; }
+  });
+
+  useEffect(() => { localStorage.setItem('fsend_preferences', JSON.stringify(prefs)); }, [prefs]);
+  const setPref = (key, value) => setPrefs((current) => ({ ...current, [key]: value }));
+  const ru = lang === 'ru';
 
   useEffect(() => {
     if (!avatarFile) {
@@ -63,6 +95,7 @@ export default function Settings({ onClose }) {
     try {
       const fd = new FormData();
       fd.append('email', email.trim());
+      fd.append('bio', bio.trim());
       fd.append('avatar_frame', avatarFrame);
       fd.append('message_frame', messageFrame);
       fd.append('accent_color', accent);
@@ -121,6 +154,14 @@ export default function Settings({ onClose }) {
           </div>
 
           <div>
+            <div className="section-title">{ru ? 'о себе' : 'bio'}</div>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>{ru ? 'текст:' : 'text:'}</label>
+              <input value={bio} maxLength={500} onChange={(e) => { setBio(e.target.value); setSaved(false); }} placeholder={ru ? 'Коротко о себе' : 'A short bio'} />
+            </div>
+          </div>
+
+          <div>
             <div className="section-title">{t('language')}</div>
             <div className="row" style={{ marginTop: 8 }}>
               {LANGUAGES.map((l) => (
@@ -152,6 +193,31 @@ export default function Settings({ onClose }) {
             </div>
           </div>
 
+          <div className="settings-group">
+            <div className="section-title">{ru ? 'уведомления' : 'notifications'}</div>
+            <SettingToggle label={ru ? 'Уведомления на устройстве' : 'Device notifications'} hint={ru ? 'Новые сообщения вне открытого чата' : 'New messages outside the open chat'} checked={prefs.desktopNotifications} onChange={async (value) => {
+              if (value && 'Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
+              setPref('desktopNotifications', value);
+            }} />
+            <SettingToggle label={ru ? 'Звуки' : 'Sounds'} hint={ru ? 'Сообщения и звонки' : 'Messages and calls'} checked={prefs.sounds} onChange={(value) => setPref('sounds', value)} />
+            <SettingToggle label={ru ? 'Предпросмотр сообщений' : 'Message previews'} hint={ru ? 'Показывать текст в уведомлении' : 'Show message text in notifications'} checked={prefs.messagePreview} onChange={(value) => setPref('messagePreview', value)} />
+            <SettingToggle label={ru ? 'Входящие звонки' : 'Incoming calls'} hint={ru ? 'Уведомлять о голосовых и видеозвонках' : 'Voice and video call alerts'} checked={prefs.callNotifications} onChange={(value) => setPref('callNotifications', value)} />
+          </div>
+
+          <div className="settings-group">
+            <div className="section-title">{ru ? 'приватность' : 'privacy'}</div>
+            <SettingToggle label={ru ? 'Отчёты о прочтении' : 'Read receipts'} hint={ru ? 'Показывать, что сообщение прочитано' : 'Let others know messages were read'} checked={prefs.readReceipts} onChange={(value) => setPref('readReceipts', value)} />
+            <SettingToggle label={ru ? 'Статус набора' : 'Typing status'} hint={ru ? 'Показывать, когда вы печатаете' : 'Show when you are typing'} checked={prefs.typingStatus} onChange={(value) => setPref('typingStatus', value)} />
+            <SettingToggle label={ru ? 'Статус в сети' : 'Online status'} hint={ru ? 'Показывать вашу активность контактам' : 'Share activity with contacts'} checked={prefs.onlineStatus} onChange={(value) => setPref('onlineStatus', value)} />
+          </div>
+
+          <div className="settings-group">
+            <div className="section-title">{ru ? 'данные и хранилище' : 'data and storage'}</div>
+            <SettingToggle label={ru ? 'Автозагрузка изображений' : 'Auto-download images'} hint={ru ? 'Загружать изображения в Wi-Fi и мобильной сети' : 'Download images on Wi-Fi and mobile'} checked={prefs.autoImages} onChange={(value) => setPref('autoImages', value)} />
+            <SettingToggle label={ru ? 'Автозагрузка файлов' : 'Auto-download files'} hint={ru ? 'Может расходовать мобильный трафик' : 'May use mobile data'} checked={prefs.autoFiles} onChange={(value) => setPref('autoFiles', value)} />
+            <label className="setting-select"><span>{ru ? 'Лимит кэша' : 'Cache limit'}</span><select value={prefs.cacheLimit} onChange={(e) => setPref('cacheLimit', e.target.value)}><option value="256">256 MB</option><option value="512">512 MB</option><option value="1024">1 GB</option><option value="2048">2 GB</option></select></label>
+          </div>
+
           <div>
             <div className="section-title">{t('avatar')}</div>
             <div className="row" style={{ marginTop: 8 }}>
@@ -170,7 +236,7 @@ export default function Settings({ onClose }) {
                 <button key={f.key}
                         className={`chip ${avatarFrame === f.key ? 'active' : ''}`}
                         onClick={() => setAvatarFrame(f.key)}>
-                  {f.key === 'none' ? t('noFrame') : f.label}
+                  {ru ? ({ none: 'без рамки', pulse: 'пульс', gold: 'золото', neon: 'неон', holo: 'голограмма', inset: 'внутренняя', ember: 'искра' }[f.key]) : f.label}
                 </button>
               ))}
             </div>
@@ -183,7 +249,7 @@ export default function Settings({ onClose }) {
                 <button key={f.key}
                         className={`chip ${messageFrame === f.key ? 'active' : ''}`}
                         onClick={() => setMessageFrame(f.key)}>
-                  {f.key === 'none' ? t('noFrame') : f.label}
+                  {ru ? ({ none: 'без рамки', bracket: 'скобки', glow: 'свечение', dashed: 'пунктир', double: 'двойная', scan: 'скан-линия' }[f.key]) : f.label}
                 </button>
               ))}
             </div>
