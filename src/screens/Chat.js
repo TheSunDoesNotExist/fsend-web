@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import api, { errText } from '../api';
+import api, { devicePayload, errText } from '../api';
 import { useAuth } from '../auth';
 import { useLang } from '../lang';
 import { useChatSocket } from '../ws';
@@ -281,7 +281,7 @@ function DevicesPanel({ lang }) {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const { data } = await api.get('/auth/users/devices/');
+      const { data } = await api.get('/auth/users/devices/', { params: { device_id: devicePayload().device_id } });
       setDevices(data.results || data);
     } catch (e) { setError(errText(e)); }
     finally { setLoading(false); }
@@ -440,7 +440,7 @@ export default function Chat() {
     refreshLiveData();
     const liveTimer = setInterval(refreshLiveData, LIVE_REFRESH_MS);
     const heartbeatTimer = setInterval(() => {
-      if (!document.hidden && preference('onlineStatus')) api.post('/auth/users/heartbeat/').catch(() => {});
+      if (!document.hidden && preference('onlineStatus')) api.post('/auth/users/heartbeat/', devicePayload()).catch(() => {});
     }, HEARTBEAT_MS);
     const onVisibility = () => {
       if (!document.hidden) refreshLiveData();

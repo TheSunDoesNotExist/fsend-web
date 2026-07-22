@@ -14,6 +14,14 @@ function deviceId() {
   return id;
 }
 
+export function devicePayload() {
+  return {
+    device_id: deviceId(),
+    device_name: navigator.platform || 'Web',
+    device_platform: 'web',
+  };
+}
+
 export const tokens = {
   get access() { return localStorage.getItem(ACCESS); },
   get refresh() { return localStorage.getItem(REFRESH); },
@@ -43,9 +51,6 @@ function isPublicAuthRequest(url = '') {
 }
 
 api.interceptors.request.use((cfg) => {
-  cfg.headers['X-Device-Id'] = deviceId();
-  cfg.headers['X-Device-Name'] = navigator.platform || 'Web';
-  cfg.headers['X-Device-Platform'] = 'web';
   const t = tokens.access;
   if (t && !isPublicAuthRequest(cfg.url)) {
     cfg.headers.Authorization = `Bearer ${t}`;

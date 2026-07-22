@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import api, { tokens } from './api';
+import api, { devicePayload, tokens } from './api';
 import { useTheme } from './theme';
 
 const AuthCtx = createContext(null);
@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (username, password) => {
-    const { data } = await api.post('/auth/users/login/', { username, password });
+    const { data } = await api.post('/auth/users/login/', { username, password, ...devicePayload() });
     tokens.set({ access: data.access, refresh: data.refresh });
     setUser(data.user);
     if (data.user?.ui_theme) setTheme(data.user.ui_theme);
