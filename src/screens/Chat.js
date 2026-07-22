@@ -205,33 +205,34 @@ function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew
   const unread = convs.reduce((total, conv) => total + (conv.unread_count || 0), 0);
   const onlineCount = contacts.filter((item) => item.contact_info?.is_online).length;
   const now = new Date();
+  const ru = lang === 'ru';
   return (
     <main className="global-menu">
       <section className="tile paper identity-tile">
-        <span className="eyebrow">WELCOME BACK / VERIFIED SESSION</span>
-        <h1>HELLO /<br />{user.username}</h1>
-        <time>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
-        <span className="tile-copy">{now.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
+        <span className="eyebrow">{ru ? 'С ВОЗВРАЩЕНИЕМ / СЕССИЯ ПОДТВЕРЖДЕНА' : 'WELCOME BACK / VERIFIED SESSION'}</span>
+        <h1>{ru ? 'ПРИВЕТ' : 'HELLO'} /<br />{user.username}</h1>
+        <time>{now.toLocaleTimeString(ru ? 'ru-RU' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</time>
+        <span className="tile-copy">{now.toLocaleDateString(ru ? 'ru-RU' : 'en-US', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
       </section>
-      <TileCard tone="lavender" eyebrow={`01 / ${unread} UNREAD`} title="CHATS"
-        copy={`${convs.length} active rooms · direct encrypted delivery.`} className="menu-chats" onClick={() => onOpen('chats')} />
-      <TileCard tone="lime" eyebrow="02 / PEOPLE" title="FRIENDS"
-        copy={`${contacts.length} contacts · ${onlineCount} online · ${requests.incoming.length} requests.`} className="menu-friends" onClick={() => onOpen('friends')} />
-      <TileCard tone="sand" eyebrow="03 / INTELLIGENCE" title="INFO"
-        copy="Dialogue summaries, decisions and follow-ups from important rooms." className="menu-info" onClick={() => onOpen('info')} />
-      <TileCard tone="paper" eyebrow="04 / CONTROL" title="SETTINGS"
-        copy="Privacy, appearance, notifications and storage." className="menu-settings" onClick={onSettings} />
-      <TileCard tone="paper" eyebrow="QUICK ACTION" title="NEW ROOM +"
-        copy="Start a direct encrypted conversation." className="menu-new" onClick={onNew} />
-      <TileCard tone="lime" eyebrow="SECURITY" title="02 TRUSTED"
-        copy="Phone · Desktop · Keys verified now." className="menu-devices" onClick={onSettings}><SignalBars /></TileCard>
-      <TileCard tone="lavender" eyebrow="ACCOUNT / ONLINE" title="YOU"
-        copy={`ID ${String(user.id).padStart(4, '0')} · Direct route active.`} className="menu-profile" onClick={onSettings}>
+      <TileCard tone="lavender" eyebrow={`01 / ${unread} ${ru ? 'НЕПРОЧИТАНО' : 'UNREAD'}`} title={ru ? 'ЧАТЫ' : 'CHATS'}
+        copy={ru ? `${convs.length} активных диалогов · защищённая прямая доставка.` : `${convs.length} active rooms · direct encrypted delivery.`} className="menu-chats" onClick={() => onOpen('chats')} />
+      <TileCard tone="lime" eyebrow={ru ? '02 / ЛЮДИ' : '02 / PEOPLE'} title={ru ? 'ДРУЗЬЯ' : 'FRIENDS'}
+        copy={ru ? `${contacts.length} контактов · ${onlineCount} в сети · ${requests.incoming.length} заявок.` : `${contacts.length} contacts · ${onlineCount} online · ${requests.incoming.length} requests.`} className="menu-friends" onClick={() => onOpen('friends')} />
+      <TileCard tone="sand" eyebrow={ru ? '03 / СВОДКА' : '03 / INTELLIGENCE'} title={ru ? 'ИНФО' : 'INFO'}
+        copy={ru ? 'Саммари диалогов, решения и задачи из важных чатов.' : 'Dialogue summaries, decisions and follow-ups from important rooms.'} className="menu-info" onClick={() => onOpen('info')} />
+      <TileCard tone="paper" eyebrow={ru ? '04 / УПРАВЛЕНИЕ' : '04 / CONTROL'} title={ru ? 'НАСТРОЙКИ' : 'SETTINGS'}
+        copy={ru ? 'Приватность, оформление, уведомления и хранилище.' : 'Privacy, appearance, notifications and storage.'} className="menu-settings" onClick={onSettings} />
+      <TileCard tone="paper" eyebrow={ru ? 'БЫСТРОЕ ДЕЙСТВИЕ' : 'QUICK ACTION'} title={ru ? 'НОВЫЙ ЧАТ +' : 'NEW ROOM +'}
+        copy={ru ? 'Начать защищённый прямой диалог.' : 'Start a direct encrypted conversation.'} className="menu-new" onClick={onNew} />
+      <TileCard tone="lime" eyebrow={ru ? 'БЕЗОПАСНОСТЬ' : 'SECURITY'} title={ru ? '02 ДОВЕРЕННЫХ' : '02 TRUSTED'}
+        copy={ru ? 'Телефон · Компьютер · Ключи проверены.' : 'Phone · Desktop · Keys verified now.'} className="menu-devices" onClick={onSettings}><SignalBars /></TileCard>
+      <TileCard tone="lavender" eyebrow={ru ? 'АККАУНТ / В СЕТИ' : 'ACCOUNT / ONLINE'} title={ru ? 'ВЫ' : 'YOU'}
+        copy={ru ? `ID ${String(user.id).padStart(4, '0')} · Прямое подключение активно.` : `ID ${String(user.id).padStart(4, '0')} · Direct route active.`} className="menu-profile" onClick={onSettings}>
         <i className="presence-pulse" />
       </TileCard>
       <div className="menu-actions">
-        <button className="tile-control" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>{lang.toUpperCase()} / LANGUAGE</button>
-        <button className="tile-control" onClick={logout}>EXIT / SESSION</button>
+        <button className="tile-control" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>{lang.toUpperCase()} / {ru ? 'ЯЗЫК' : 'LANGUAGE'}</button>
+        <button className="tile-control" onClick={logout}>{ru ? 'ВЫЙТИ / СЕССИЯ' : 'EXIT / SESSION'}</button>
       </div>
     </main>
   );
