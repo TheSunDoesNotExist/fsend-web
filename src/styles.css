@@ -410,13 +410,13 @@ input, textarea, button, select {
   background: #000;
 }
 .attachment.video-note video {
-  width: min(240px, 62vw);
+  width: min(260px, 66vw);
   aspect-ratio: 1;
-  border-radius: 50%;
+  /* блок со скруглением, как само сообщение — не круг */
+  border-radius: 12px;
   object-fit: cover;
   background: #000;
-  border: 2px solid var(--green);
-  box-shadow: 0 0 18px var(--shadow);
+  border: 2px solid var(--ink, var(--border));
 }
 .attachment.video-note {
   display: inline-flex;
@@ -1483,7 +1483,9 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
     padding: 6px 6px max(6px, env(safe-area-inset-bottom, 0px));
   }
   .composer .btn { min-height: 38px; padding: 5px 7px; font-size: 11px; }
-  .composer input:not([type="file"]) { width: 100%; min-width: 0; font-size: 13px; }
+  /* 16px обязательны: при меньшем размере iOS Safari зумит всю страницу
+     на фокусе поля — из-за этого «раздувалась» нижняя панель */
+  .composer input:not([type="file"]) { width: 100%; min-width: 0; font-size: 16px; }
 
   .main-shell.section-friends { display: block; overflow: hidden; }
   .friends-view {
@@ -1546,6 +1548,21 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+/* --- Мобильный ввод: без авто-зума и с учётом клавиатуры --------------- */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  /* Любое поле мельче 16px заставляет iOS Safari зумить страницу на фокусе.
+     Держим 16px везде, где пользователь печатает. */
+  input:not([type="file"]):not([type="checkbox"]),
+  textarea,
+  select { font-size: 16px; }
+
+  /* --vvh выставляет App.js по visualViewport: высота без клавиатуры.
+     Иначе на iOS композер уезжает под клавиатуру. */
+  html, body, #root { height: var(--vvh, 100dvh); }
+  .app { height: 100%; min-height: 0; }
+  .log { overscroll-behavior: contain; }
 }
 
 /* --- Фон чата --------------------------------------------------------- */
