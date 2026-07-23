@@ -21,7 +21,12 @@ document.addEventListener('focusin', (event) => {
   if (!event.target.matches('input, textarea, select')) return;
   setTimeout(() => {
     syncViewport();
-    if (event.target.isConnected) event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (!event.target.isConnected) return;
+    const inAuth = event.target.closest('.auth-primary');
+    event.target.scrollIntoView({
+      block: inAuth ? 'center' : 'nearest',
+      inline: 'nearest',
+    });
   }, 300);
 });
 document.addEventListener('focusout', () => setTimeout(syncViewport, 100));

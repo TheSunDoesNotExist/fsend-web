@@ -1365,14 +1365,58 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
   .term-brand, .term-title, .term-status { min-height: 44px; border-radius: 12px; padding: 9px 10px; }
   .term-brand { font-size: 18px; }.term-title { font-size: 11px; }.term-status { width: 30px; padding: 9px; overflow: hidden; }
   .term-status .presence-dot { flex: 0 0 9px; }.term-status { font-size: 0; }
-  .term-body { overflow-y: auto; }
+  .term-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .tile { border-radius: 14px; }
-  .auth-workspace { height: auto; min-height: max-content; display: flex; flex: 0 0 auto; flex-direction: column; align-items: stretch; overflow: visible; }
-  .auth-primary { min-height: max-content; padding: 16px; }.auth-primary > * { flex-shrink: 0; }.auth-primary h1 { font-size: 44px; letter-spacing: -2px; }
+  /* height:100% + min-height у боковых плиток сжимали форму до одной строки при открытой клавиатуре */
+  .auth-workspace {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    overflow: visible;
+  }
+  .auth-primary {
+    flex: 0 0 auto;
+    min-height: auto;
+    padding: 16px;
+    overflow: visible;
+  }
+  .auth-primary.tile { overflow: visible; }
+  .auth-primary > * { flex-shrink: 0; }
+  .auth-primary h1 { font-size: 44px; letter-spacing: -2px; }
   .auth-primary .tabs { flex-wrap: wrap; overflow: visible; }
   .auth-primary .lang-tab { margin-left: 0; }
-  .auth-side { display: contents; }.pair-tile { min-height: 210px; padding: 14px; }.pair-tile strong { font-size: 25px; }
-  .status-grid { order: 3; }.status-card { min-height: 124px; }
+  .auth-primary .field {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 12px;
+    min-height: auto;
+  }
+  .auth-primary .field span,
+  .auth-primary .field label {
+    min-width: 0;
+    white-space: normal;
+  }
+  .auth-primary .field input {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+    line-height: 1.25;
+  }
+  .auth-side { display: contents; }
+  .pair-tile {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 14px;
+  }
+  .pair-tile strong { font-size: 25px; margin-top: 8px; }
+  .status-grid { order: 3; flex: 0 0 auto; }
+  .status-card { min-height: 0; }
   .global-menu {
     height: auto; overflow-y: visible; grid-template-columns: 1fr 1fr;
     grid-template-rows: 88px 142px 132px 168px 132px 124px 42px;
@@ -1449,6 +1493,11 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
   .tabs { gap: 6px; }
   .tab, .btn, .chip { min-height: 42px; }
   .field { min-height: 46px; }
+  .auth-primary .field { min-height: auto; }
+  .pair-tile h2 { font-size: 22px; }
+  .pair-tile strong { font-size: 20px; letter-spacing: .5px; }
+  .status-card { min-height: 108px; padding: 12px; }
+  .status-card h2 { font-size: 22px; }
 
   .side-tab { min-height: 44px; }
   .sidebar > .sidebar-head:last-child { align-items: stretch; flex-direction: column; }
@@ -1582,6 +1631,17 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
     max-height: 100%;
   }
   .log { overscroll-behavior: contain; }
+
+  .auth-workspace {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+  .auth-primary,
+  .auth-primary.tile {
+    flex-shrink: 0;
+    overflow: visible;
+  }
 }
 
 /* --- Фон чата --------------------------------------------------------- */
