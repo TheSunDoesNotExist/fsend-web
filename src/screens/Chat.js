@@ -880,28 +880,29 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
   const tr = (russian, english) => ru ? russian : english;
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    if (q.trim().length < 2) { setResults([]); return; }
     let alive = true;
-    const t = setTimeout(async () => {
+    const query = q.trim();
+    const timer = setTimeout(async () => {
+      setSearching(true);
       try {
-        const { data } = await api.get('/auth/contacts/search/', { params: { q: q.trim() } });
+        const { data } = await api.get('/auth/contacts/search/', { params: { q: query } });
         if (alive) setResults(data);
       } catch (e) { if (alive && !isThrottleError(e)) setErr(errText(e)); }
-    }, 250);
-    return () => { alive = false; clearTimeout(t); };
+      finally { if (alive) setSearching(false); }
+    }, query ? 250 : 0);
+    return () => { alive = false; clearTimeout(timer); };
   }, [q]);
 
   async function addFriend(u) {
     setBusy(true); setErr('');
     try {
       await api.post('/auth/friend-requests/', { to_user: u.id });
-      setQ('');
-      setResults([]);
-      await onRequestsChanged();
+      await Promise.all([onRequestsChanged(), onContactsChanged()]);
     } catch (e) { setErr(errText(e)); }
     finally { setBusy(false); }
   }
@@ -917,6 +918,8 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
   }
 
   const outgoingIds = new Set((requests.outgoing || []).map((r) => r.to_user));
+  const incomingIds = new Set([...(requests.incoming || []), ...(requests.deferred || [])].map((r) => r.from_user));
+  const friendIds = new Set(friends.map((friend) => friend.id));
   const pendingRequests = [...(requests.incoming || []), ...(requests.deferred || [])];
   const onlineCount = friends.filter((friend) => friend.is_online).length;
 
@@ -932,7 +935,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
           <div className="friend-tile tone-paper"><span className="friend-tile-label">{tr('КОНТАКТЫ / 00', 'CONTACTS / 00')}</span><strong>{tr('ПОКА ПУСТО', 'EMPTY')}</strong><p>{tr('Добавьте первого доверенного контакта.', 'Add your first trusted contact.')}</p></div>
         )}
         {friends.map((friend, index) => (
-          <button key={friend.id} className={`friend-tile friend-person tone-${index % 3 === 0 ? 'lavender' : index % 3 === 1 ? 'paper' : 'cream'} ${friend.id === activeFriend?.id ? 'selected' : ''}`} onClick={() => onSelect(friend)}>
+          <button key={friend.id} className={`friend-tile friend-person tone-${index % 3 === 0 ? 'lavender' : index % 3 === 1 ? 'paper' : 'cream'} ${friend.id === activeFriend?.id ? 'selected' : ''}`} onClick={() => window.matchMedia('(max-width: 900px)').matches ? onStartChat(friend) : onSelect(friend)}>
             <span className="friend-tile-label">{friend.is_online ? tr('В СЕТИ', 'ONLINE') : tr('НЕ В СЕТИ', 'OFFLINE')}</span>
             <strong>{friend.username}</strong>
             <p>{friend.is_online ? tr('Проверенный контакт · сейчас в сети.', 'Verified contact · online now.') : `${tr('Последняя активность', 'Last seen')} ${fmtLastSeen(friend.last_seen, t)}.`}</p>
@@ -980,22 +983,35 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
           <span className="friend-tile-label">{tr('ДОБАВИТЬ ДРУГА', 'ADD FRIEND')}</span>
           <strong>{tr('ПОИСК +', 'SEARCH +')}</strong>
           <div className="friend-search-field">
-            <input value={q} placeholder={t('friendSearchNewPlaceholder')} onChange={(e) => setQ(e.target.value)} />
+            <input value={q} aria-label={tr('Поиск зарегистрированных пользователей', 'Search registered users')} placeholder={tr('Найти по логину', 'Find by username')} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <div className="friend-search-results">
-            {results.filter((u) => !friends.some((f) => f.id === u.id)).map((u) => (
-              <button key={u.id} disabled={busy || outgoingIds.has(u.id)} onClick={() => addFriend(u)}>
-                <span>{u.username}</span><span>{outgoingIds.has(u.id) ? t('sent') : '+'}</span>
-              </button>
-            ))}
+          <div className="friend-search-caption">
+            {q.trim() ? tr('НАЙДЕНО', 'FOUND') : tr('ЗАРЕГИСТРИРОВАНЫ', 'REGISTERED')} / {String(results.length).padStart(2, '0')}
           </div>
+          <div className="friend-search-results" aria-live="polite">
+            {searching && <div className="friend-search-empty">{tr('Ищем…', 'Searching…')}</div>}
+            {!searching && results.length === 0 && <div className="friend-search-empty">{tr('Пользователи не найдены.', 'No users found.')}</div>}
+            {!searching && results.map((u) => {
+              const isFriend = friendIds.has(u.id);
+              const isOutgoing = outgoingIds.has(u.id);
+              const isIncoming = incomingIds.has(u.id);
+              const action = isFriend ? tr('ДРУГ', 'FRIEND') : isOutgoing ? tr('ОЖИДАЕТ', 'PENDING') : isIncoming ? tr('ПРИНЯТЬ', 'ACCEPT') : '+';
+              return (
+                <button key={u.id} disabled={busy || isFriend || isOutgoing} onClick={() => addFriend(u)}>
+                  <Avatar name={u.username} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} size="sm" />
+                  <span className="friend-search-person"><strong>{u.username}</strong><small>{u.is_online ? tr('в сети', 'online') : tr('зарегистрирован', 'registered')}</small></span>
+                  <span className="friend-search-action">{action}</span>
+                </button>
+              );
+            })}
+          </div>
+          {err && <span className="err friend-search-error">! {err}</span>}
         </div>
 
         <div className="friend-tile tone-lavender friend-trust-card">
           <span className="friend-tile-label">{tr('ДОВЕРИЕ', 'TRUST')}</span>
           <strong>{String(friends.length).padStart(2, '0')} {tr('ПРОВЕРЕНО', 'VERIFIED')}</strong>
           <p>{requests.outgoing?.length || 0} {tr('ожидают подтверждения.', 'pending review.')}</p>
-          {err && <span className="err">! {err}</span>}
         </div>
       </aside>
     </div>
@@ -1061,15 +1077,15 @@ function NewChat({ onCreated, me }) {
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    if (q.trim().length < 2) { setResults([]); return; }
     let alive = true;
-    const t = setTimeout(async () => {
+    const query = q.trim();
+    const timer = setTimeout(async () => {
       try {
-        const { data } = await api.get('/auth/contacts/search/', { params: { q: q.trim() } });
+        const { data } = await api.get('/auth/contacts/search/', { params: { q: query } });
         if (alive) setResults(data);
       } catch (e) { if (alive && !isThrottleError(e)) setErr(errText(e)); }
-    }, 250);
-    return () => { alive = false; clearTimeout(t); };
+    }, query ? 250 : 0);
+    return () => { alive = false; clearTimeout(timer); };
   }, [q]);
 
   async function start(u) {
