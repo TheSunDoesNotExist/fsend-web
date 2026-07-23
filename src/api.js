@@ -43,6 +43,8 @@ const PUBLIC_AUTH_PATHS = [
   '/auth/users/verify_email/',
   '/auth/users/request_password_reset/',
   '/auth/users/reset_password/',
+  '/auth/users/qr_login_create/',
+  '/auth/users/qr_login_status/',
   '/auth/token/refresh/',
 ];
 

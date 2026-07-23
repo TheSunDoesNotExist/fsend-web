@@ -38,13 +38,26 @@ export function AuthProvider({ children }) {
     return data.user;
   }, [setTheme]);
 
+  const loginWithTokens = useCallback(async ({ access, refresh, user: nextUser }) => {
+    tokens.set({ access, refresh });
+    if (nextUser) {
+      setUser(nextUser);
+      if (nextUser.ui_theme) setTheme(nextUser.ui_theme);
+      return nextUser;
+    }
+    const { data } = await api.get('/auth/users/me/');
+    setUser(data);
+    if (data.ui_theme) setTheme(data.ui_theme);
+    return data;
+  }, [setTheme]);
+
   const logout = useCallback(() => {
     tokens.clear();
     setUser(null);
   }, []);
 
   return (
-    <AuthCtx.Provider value={{ user, loading, login, logout, reload: loadMe }}>
+    <AuthCtx.Provider value={{ user, loading, login, loginWithTokens, logout, reload: loadMe }}>
       {children}
     </AuthCtx.Provider>
   );

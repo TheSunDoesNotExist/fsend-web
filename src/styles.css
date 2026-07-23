@@ -1101,7 +1101,31 @@ button.nav-tile:active { transform: translateY(1px) scale(.985); box-shadow: non
 .auth-side { display: grid; gap: 10px; }
 .pair-tile { min-height: 390px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
 .pair-tile h2 { margin: 0; font-size: 28px; }
-.pair-tile strong { margin-top: auto; font-size: 32px; letter-spacing: 1px; }
+.qr-login { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.qr-login h2 { margin: 0; font-size: 28px; letter-spacing: -.5px; }
+.qr-login-frame {
+  margin-top: auto;
+  align-self: center;
+  width: min(100%, 236px);
+  aspect-ratio: 1;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  padding: 8px;
+}
+.qr-login-image { width: 100%; height: 100%; object-fit: contain; display: block; }
+.qr-login-placeholder {
+  padding: 12px;
+  text-align: center;
+  color: var(--ink-800);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.qr-login-placeholder.ok { color: #275916; font-weight: 700; }
+.qr-login-placeholder.err { color: #8f1f1f; font-weight: 700; }
+.qr-login-refresh { margin-top: 4px; }
 .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .status-card { min-height: 150px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
 .status-card h2 { margin: 2px 0; font-size: 28px; }
@@ -1414,7 +1438,8 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
     min-height: 0;
     padding: 14px;
   }
-  .pair-tile strong { font-size: 25px; margin-top: 8px; }
+  .qr-login h2 { font-size: 22px; }
+  .qr-login-frame { width: min(100%, 200px); }
   .status-grid { order: 3; flex: 0 0 auto; }
   .status-card { min-height: 0; }
   .global-menu {
@@ -1495,7 +1520,7 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
   .field { min-height: 46px; }
   .auth-primary .field { min-height: auto; }
   .pair-tile h2 { font-size: 22px; }
-  .pair-tile strong { font-size: 20px; letter-spacing: .5px; }
+  .qr-login-frame { width: min(100%, 180px); }
   .status-card { min-height: 108px; padding: 12px; }
   .status-card h2 { font-size: 22px; }
 

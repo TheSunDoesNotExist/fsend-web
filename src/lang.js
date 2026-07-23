@@ -42,6 +42,15 @@ const DICT = {
     repeatPasswordPlaceholder: 'повтор пароля',
     resetTokenPlaceholder: 'код из ссылки',
 
+    qrLoginEyebrow: 'НОВОЕ УСТРОЙСТВО / НЕОБЯЗАТЕЛЬНО',
+    qrLoginTitle: 'ВХОД ПО QR',
+    qrLoginHint: 'Откройте Fsend на телефоне → Устройства → Сканировать QR.',
+    qrLoading: 'Генерируем QR…',
+    qrApproved: 'Вход подтверждён',
+    qrExpired: 'QR-код истёк',
+    qrRefresh: 'обновить QR',
+    qrGenerateError: 'Не удалось создать QR-код',
+
     chats: 'чаты',
     friends: 'друзья',
     conversations: 'диалоги',
@@ -170,6 +179,15 @@ const DICT = {
     minPasswordPlaceholder: 'min 8 characters',
     repeatPasswordPlaceholder: 'repeat password',
     resetTokenPlaceholder: 'code from link',
+
+    qrLoginEyebrow: 'NEW DEVICE / OPTIONAL',
+    qrLoginTitle: 'LOGIN WITH QR',
+    qrLoginHint: 'Open Fsend on your phone → Devices → Scan QR.',
+    qrLoading: 'Generating QR…',
+    qrApproved: 'Login approved',
+    qrExpired: 'QR code expired',
+    qrRefresh: 'refresh QR',
+    qrGenerateError: 'Could not generate QR code',
 
     chats: 'chats',
     friends: 'friends',

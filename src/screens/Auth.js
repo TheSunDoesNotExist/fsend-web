@@ -3,6 +3,7 @@ import api, { errText } from '../api';
 import { useAuth } from '../auth';
 import { useLang } from '../lang';
 import Terminal from '../components/Terminal';
+import QrLoginPanel from '../components/QrLoginPanel';
 
 function Field({ label, ...props }) {
   return (
@@ -24,7 +25,7 @@ function LatencyGraph() {
 }
 
 export default function Auth() {
-  const { login } = useAuth();
+  const { login, loginWithTokens } = useAuth();
   const { lang, setLang, t } = useLang();
   const [tab, setTab] = useState('login');
   const [busy, setBusy] = useState(false);
@@ -170,10 +171,7 @@ export default function Auth() {
         </section>
         <aside className="auth-side">
           <section className="tile sand pair-tile">
-            <div className="eyebrow">{ru ? 'НОВОЕ УСТРОЙСТВО / НЕОБЯЗАТЕЛЬНО' : 'NEW DEVICE / OPTIONAL'}</div>
-            <h2>{ru ? 'ПОДКЛЮЧИТЬ ПО КОДУ' : 'PAIR WITH CODE'}</h2>
-            <strong>RIV · MINT · 42</strong>
-            <p className="tile-copy">{ru ? 'Откройте Fsend на другом устройстве и введите этот код.' : 'Open Fsend on another device and enter this code.'}</p>
+            <QrLoginPanel onSuccess={loginWithTokens} />
           </section>
           <div className="status-grid">
             <section className="tile lime status-card"><div className="eyebrow">{ru ? 'БЕЗОПАСНОСТЬ' : 'SECURITY'}</div><h2>E2E</h2><span>{ru ? 'ЛОКАЛЬНЫЕ КЛЮЧИ' : 'LOCAL KEYS'}</span><span className="signal-bars"><i /><i /><i /></span></section>
