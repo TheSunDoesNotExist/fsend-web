@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api, { errText } from '../api';
 import { useAuth } from '../auth';
 import { useLang } from '../lang';
@@ -35,12 +35,26 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [confirm, setConfirm] = useState('');
   const [invite, setInvite] = useState('');
-  const [resetIdentifier, setResetIdentifier] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newConfirm, setNewConfirm] = useState('');
+  const [tokenFromLink, setTokenFromLink] = useState(false);
 
   const reset = (next) => { setTab(next); setErr(''); setMsg(''); };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('reset')?.trim();
+    if (!token) return;
+    setResetToken(token);
+    setTokenFromLink(true);
+    setTab('reset');
+    params.delete('reset');
+    const qs = params.toString();
+    const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, []);
 
   async function doLogin(e) {
     e.preventDefault();
@@ -67,8 +81,8 @@ export default function Auth() {
     e.preventDefault();
     setErr(''); setMsg(''); setBusy(true);
     try {
-      await api.post('/auth/users/request_password_reset/', { identifier: resetIdentifier.trim() });
-      reset('reset'); setMsg(t('resetRequestDone'));
+      await api.post('/auth/users/request_password_reset/', { email: resetEmail.trim() });
+      setMsg(t('resetRequestDone'));
     } catch (e2) { setErr(errText(e2)); }
     finally { setBusy(false); }
   }
@@ -80,7 +94,7 @@ export default function Auth() {
       await api.post('/auth/users/reset_password/', {
         token: resetToken.trim(), new_password: newPassword, new_password_confirm: newConfirm,
       });
-      setPassword(''); setNewPassword(''); setNewConfirm('');
+      setPassword(''); setNewPassword(''); setNewConfirm(''); setResetToken(''); setTokenFromLink(false);
       reset('login'); setMsg(t('resetDone'));
     } catch (e2) { setErr(errText(e2)); }
     finally { setBusy(false); }
@@ -97,7 +111,7 @@ export default function Auth() {
           <span>PRIMARY ACTION</span>{busy ? t('signingIn') : `${t('signIn')}  →`}
         </button>
         <button type="button" className="tile-action secondary" onClick={() => {
-          setResetIdentifier(username.trim()); reset('forgot');
+          setResetEmail(''); reset('forgot');
         }}>{t('forgotPassword')}  +</button>
       </form>
     ),
@@ -116,16 +130,20 @@ export default function Auth() {
     forgot: (
       <form className="form" onSubmit={doRequestReset}>
         <p className="hint muted">{t('resetRequestHint')}</p>
-        <Field label={`${t('account')}:`} value={resetIdentifier} autoFocus onChange={(e) => setResetIdentifier(e.target.value)} placeholder={t('accountPlaceholder')} />
-        <button className="tile-action primary" disabled={busy || !resetIdentifier.trim()}>{busy ? t('sending') : `${t('sendResetCode')}  →`}</button>
-        <button type="button" className="tile-action secondary" onClick={() => reset('reset')}>{t('haveCode')}  +</button>
+        <Field label="email:" type="email" value={resetEmail} autoFocus autoComplete="email"
+          onChange={(e) => setResetEmail(e.target.value)} placeholder={t('emailPlaceholder')} />
+        <button className="tile-action primary" disabled={busy || !resetEmail.trim()}>{busy ? t('sending') : `${t('sendResetLink')}  →`}</button>
+        <button type="button" className="tile-action secondary" onClick={() => reset('reset')}>{t('haveResetLink')}  +</button>
       </form>
     ),
     reset: (
       <form className="form" onSubmit={doResetPassword}>
-        <p className="hint muted">{t('resetHint')}</p>
-        <Field label={`${t('token')}:`} value={resetToken} autoFocus onChange={(e) => setResetToken(e.target.value)} placeholder={t('resetTokenPlaceholder')} />
-        <Field label={`${t('newPassword')}:`} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={t('minPasswordPlaceholder')} />
+        <p className="hint muted">{tokenFromLink ? t('resetLinkHint') : t('resetHint')}</p>
+        {!tokenFromLink && (
+          <Field label={`${t('token')}:`} value={resetToken} autoFocus onChange={(e) => setResetToken(e.target.value)} placeholder={t('resetTokenPlaceholder')} />
+        )}
+        <Field label={`${t('newPassword')}:`} type="password" value={newPassword} autoFocus={tokenFromLink}
+          onChange={(e) => setNewPassword(e.target.value)} placeholder={t('minPasswordPlaceholder')} />
         <Field label={`${t('confirm')}:`} type="password" value={newConfirm} onChange={(e) => setNewConfirm(e.target.value)} placeholder={t('repeatPasswordPlaceholder')} />
         <button className="tile-action primary" disabled={busy || !resetToken || !newPassword || !newConfirm}>{busy ? t('updating') : `${t('resetPassword')}  →`}</button>
       </form>
