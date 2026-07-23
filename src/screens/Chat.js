@@ -5,7 +5,7 @@ import { useLang } from '../lang';
 import { useChatSocket } from '../ws';
 import { API_URL } from '../config';
 import Terminal from '../components/Terminal';
-import Avatar from '../components/Avatar';
+import Avatar, { avatarVersionOf } from '../components/Avatar';
 import Settings from './Settings';
 import Admin from './Admin';
 import ChatBackground, { bgUrl } from './ChatBackground';
@@ -33,7 +33,7 @@ const fmtLastSeen = (iso, t) => {
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
 const ATTACH_PREFIX = 'fsend://attachment/';
-const LIVE_REFRESH_MS = 15000;
+const LIVE_REFRESH_MS = 120000;
 const HEARTBEAT_MS = 30000;
 
 function isThrottleError(e) {
@@ -308,6 +308,58 @@ function InfoDashboard({ convs, contacts, requests, lang }) {
   );
 }
 
+function ConvMetaDialog({ conv, user, t, lang, onClose, onSaved }) {
+  const [group, setGroup] = useState(conv.user_meta?.group || '');
+  const [tagsText, setTagsText] = useState((conv.user_meta?.tags || []).join(', '));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    setBusy(true); setErr('');
+    const tags = tagsText.split(',').map((s) => s.trim()).filter(Boolean);
+    try {
+      const { data } = await api.patch(`/messages/conversations/${conv.id}/meta/`, { group: group.trim(), tags });
+      onSaved(conv.id, data);
+      onClose();
+    } catch (e) { setErr(errText(e)); }
+    finally { setBusy(false); }
+  }
+
+  const title = convTitle(conv, user, t);
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal conv-meta-modal" role="dialog">
+        <div className="modal-head">
+          <span className="green">{t('convMetaTitle')}</span>
+          <button className="btn ghost sm" onClick={onClose}>esc x</button>
+        </div>
+        <div className="modal-body conv-meta-body">
+          <p className="muted">{title}</p>
+          <div className="section-title">{t('convGroup')}</div>
+          <div className="field" style={{ marginTop: 8 }}>
+            <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder={t('convGroupPlaceholder')} maxLength={64} />
+          </div>
+          <div className="section-title" style={{ marginTop: 12 }}>{t('convTags')}</div>
+          <div className="field" style={{ marginTop: 8 }}>
+            <input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder={t('convTagsPlaceholder')} />
+          </div>
+          <p className="hint muted">{t('convTagsHint')}</p>
+          {err && <div className="err">! {err}</div>}
+          <button className="btn primary" disabled={busy} onClick={save} style={{ marginTop: 12 }}>
+            {busy ? '…' : t('save')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function convTagsFor(c, activeId, t) {
+  const tags = [...(c.user_meta?.tags || [])];
+  if (c.unread_count > 0 && c.id !== activeId) tags.unshift(t('tagUnread'));
+  return tags;
+}
+
 function DevicesPanel({ lang }) {
   const ru = lang === 'ru';
   const [devices, setDevices] = useState([]);
@@ -375,8 +427,39 @@ export default function Chat() {
   const holdActiveRef = useRef(false);
   const previewRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+  const [groupFilter, setGroupFilter] = useState('');
+  const [metaEdit, setMetaEdit] = useState(null);
 
   const active = useMemo(() => convs.find((c) => c.id === activeId), [convs, activeId]);
+  const convGroups = useMemo(() => {
+    const groups = new Set();
+    convs.forEach((c) => {
+      const g = c.user_meta?.group?.trim();
+      if (g) groups.add(g);
+    });
+    return [...groups].sort((a, b) => a.localeCompare(b));
+  }, [convs]);
+  const groupedConvs = useMemo(() => {
+    const filtered = convs.filter((c) => !groupFilter || (c.user_meta?.group || '').trim() === groupFilter);
+    if (groupFilter) return [{ group: groupFilter, items: filtered }];
+    const map = new Map();
+    filtered.forEach((c) => {
+      const g = c.user_meta?.group?.trim() || '';
+      if (!map.has(g)) map.set(g, []);
+      map.get(g).push(c);
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => {
+        if (!a) return 1;
+        if (!b) return -1;
+        return a.localeCompare(b);
+      })
+      .map(([group, items]) => ({ group, items }));
+  }, [convs, groupFilter]);
+
+  const patchConvMeta = useCallback((convId, meta) => {
+    setConvs((cs) => cs.map((c) => (c.id === convId ? { ...c, user_meta: meta } : c)));
+  }, []);
   const friends = useMemo(() => contacts.map((c) => c.contact_info).filter(Boolean), [contacts]);
   const activeFriend = useMemo(
     () => friends.find((f) => f.id === activeFriendId) || friends[0] || null,
@@ -823,32 +906,63 @@ export default function Chat() {
         }} me={user} />}
         <div className="conv-list">
           {section === 'chats' && convs.length === 0 && <div className="muted" style={{ padding: 12 }}>{t('emptyChats')}</div>}
-          {section === 'chats' && convs.map((c) => {
+          {section === 'chats' && convs.length > 0 && (
+            <div className="conv-groups">
+              <button type="button" className={`conv-group-tab ${!groupFilter ? 'active' : ''}`} onClick={() => setGroupFilter('')}>
+                {t('allGroups')}
+              </button>
+              {convGroups.map((g) => (
+                <button key={g} type="button" className={`conv-group-tab ${groupFilter === g ? 'active' : ''}`} onClick={() => setGroupFilter(g)}>
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
+          {section === 'chats' && groupedConvs.map(({ group, items }) => (
+            <div key={group || '__default'} className="conv-group-block">
+              {group && !groupFilter && <div className="conv-group-label">{group}</div>}
+              {items.map((c) => {
             const title = convTitle(c, user, t);
             const o = otherOf(c, user);
             const isOnline = online[o?.id] ?? o?.is_online;
+            const tags = convTagsFor(c, activeId, t);
             return (
               <div key={c.id} className={`conv ${c.id === activeId ? 'active' : ''}`}
-                   onClick={() => setActiveId(c.id)}>
+                   onClick={() => setActiveId(c.id)}
+                   onContextMenu={(e) => { e.preventDefault(); setMetaEdit(c); }}>
                 <Avatar
                   name={title}
                   accent={o?.accent_color || '#39ff14'}
                   frame={o?.avatar_frame || 'none'}
                   src={o?.avatar}
-                  version={o?.avatar_version || o?.last_seen || o?.id}
+                  version={avatarVersionOf(o)}
                 />
                 <div className="conv-text">
-                  <div className="conv-name">
-                    {c.is_secret && <span title={lang === 'ru' ? 'секретный чат' : 'secret chat'}>◈ </span>}
-                    {title}
-                    {isOnline && <span className="green">●</span>}
+                  <div className="conv-head">
+                    <div className="conv-name">
+                      {c.is_secret && <span title={lang === 'ru' ? 'секретный чат' : 'secret chat'}>◈ </span>}
+                      {title}
+                      {isOnline && <span className="green">●</span>}
+                    </div>
+                    {c.last_message?.created_at && (
+                      <time className="conv-time">{fmtTime(c.last_message.created_at)}</time>
+                    )}
                   </div>
                   <div className="conv-last">{messagePreview(c.last_message?.content)}</div>
+                  {tags.length > 0 && (
+                    <div className="conv-tags">
+                      {tags.map((tag) => (
+                        <span key={tag} className={`conv-tag ${tag === t('tagUnread') ? 'conv-tag-unread' : 'conv-tag-user'}`}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {c.unread_count > 0 && c.id !== activeId && <span className="badge">{c.unread_count}</span>}
               </div>
             );
-          })}
+              })}
+            </div>
+          ))}
           {section === 'friends' && friends.length === 0 && <div className="muted" style={{ padding: 12 }}>{t('friendsEmpty')}</div>}
           {section === 'friends' && friends.map((f) => (
             <div key={f.id} className={`conv ${f.id === activeFriend?.id ? 'active' : ''}`}
@@ -858,7 +972,7 @@ export default function Chat() {
                 accent={f.accent_color || '#39ff14'}
                 frame={f.avatar_frame || 'none'}
                 src={f.avatar}
-                version={f.avatar_version || f.last_seen || f.id}
+                version={avatarVersionOf(f)}
               />
               <div className="conv-text">
                 <div className="conv-name">
@@ -877,7 +991,7 @@ export default function Chat() {
               accent={user.accent_color}
               frame={user.avatar_frame}
               src={user.avatar}
-              version={user.avatar_version || user.last_seen || user.id}
+              version={avatarVersionOf(user)}
               size="sm"
             />
             <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{personName(user)}</span>
@@ -928,7 +1042,7 @@ export default function Chat() {
                   accent={otherOf(active, user)?.accent_color || '#39ff14'}
                   frame={otherOf(active, user)?.avatar_frame || 'none'}
                   src={otherOf(active, user)?.avatar}
-                  version={otherOf(active, user)?.avatar_version || otherOf(active, user)?.last_seen || otherOf(active, user)?.id}
+                  version={avatarVersionOf(otherOf(active, user))}
                 />
                 <span className="green">{active.is_secret && '◈ '}{convTitle(active, user, t)}</span>
               </div>
@@ -952,7 +1066,7 @@ export default function Chat() {
                          e.preventDefault();
                          setMsgMenu({ x: e.clientX, y: e.clientY, message: m });
                        }}>
-                    <Avatar name={m.who} accent={accent} frame={p.avatar_frame || 'none'} src={p.avatar} version={p.avatar_version || p.last_seen || p.id} size="sm" />
+                    <Avatar name={m.who} accent={accent} frame={p.avatar_frame || 'none'} src={p.avatar} version={avatarVersionOf(p)} size="sm" />
                     <div className={`msg-body msg-frame-${p.message_frame || 'none'}`} style={{ '--accent': accent }}>
                       <div className="msg-meta">
                         <span className="ts">[{fmtTime(m.ts)}] </span>
@@ -1015,6 +1129,16 @@ export default function Chat() {
       </div>
       )}
 
+      {metaEdit && (
+        <ConvMetaDialog
+          conv={metaEdit}
+          user={user}
+          t={t}
+          lang={lang}
+          onClose={() => setMetaEdit(null)}
+          onSaved={patchConvMeta}
+        />
+      )}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
       {showBg && activeId && (
@@ -1181,7 +1305,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
               const action = isFriend ? tr('ДРУГ', 'FRIEND') : isOutgoing ? tr('ОЖИДАЕТ', 'PENDING') : isIncoming ? tr('ПРИНЯТЬ', 'ACCEPT') : '+';
               return (
                 <button key={u.id} disabled={busy || isFriend || isOutgoing} onClick={() => addFriend(u)}>
-                  <Avatar name={personName(u)} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} version={u.avatar_version || u.last_seen || u.id} size="sm" />
+                  <Avatar name={personName(u)} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} version={avatarVersionOf(u)} size="sm" />
                   <span className="friend-search-person"><strong>{personName(u)}</strong><small>{u.is_online ? tr('в сети', 'online') : tr('зарегистрирован', 'registered')}</small></span>
                   <span className="friend-search-action">{action}</span>
                 </button>
@@ -1239,7 +1363,7 @@ function SecretChatModal({ friends, onClose, onCreated }) {
             {friends.length === 0 && <div className="muted">{ru ? 'Сначала добавьте пользователя в друзья.' : 'Add someone as a friend first.'}</div>}
             {friends.map((friend) => (
               <button key={friend.id} className="secret-friend" disabled={busyId !== null} onClick={() => start(friend)}>
-                <Avatar name={personName(friend)} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} version={friend.avatar_version || friend.last_seen || friend.id} />
+                <Avatar name={personName(friend)} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} version={avatarVersionOf(friend)} />
                 <span><strong>{personName(friend)}</strong><small>{friend.is_online ? (ru ? 'в сети' : 'online') : (ru ? 'не в сети' : 'offline')}</small></span>
                 <b>{busyId === friend.id ? '…' : '◈'}</b>
               </button>
@@ -1293,7 +1417,7 @@ function NewChat({ onCreated, me }) {
             accent={u.accent_color || '#39ff14'}
             frame={u.avatar_frame || 'none'}
             src={u.avatar}
-            version={u.avatar_version || u.last_seen || u.id}
+            version={avatarVersionOf(u)}
             size="sm"
           />
           <div className="conv-text"><div className="conv-name">{personName(u)}</div></div>

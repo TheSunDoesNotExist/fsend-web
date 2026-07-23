@@ -3,7 +3,7 @@ import api, { errText } from '../api';
 import { useAuth } from '../auth';
 import { THEMES, useTheme } from '../theme';
 import { LANGUAGES, useLang } from '../lang';
-import Avatar from '../components/Avatar';
+import Avatar, { avatarVersionOf } from '../components/Avatar';
 import { AVATAR_FRAMES, MESSAGE_FRAMES, ACCENTS } from '../frames';
 
 const DEFAULT_PREFS = {
@@ -126,7 +126,7 @@ export default function Settings({ onClose }) {
               frame={avatarFrame}
               size="lg"
               src={avatarPreview || user.avatar}
-              version={user.avatar_version || user.last_seen || user.id}
+              version={avatarVersionOf(user)}
             />
             <div className="msg me" style={{ animation: 'none', opacity: 1, transform: 'none' }}>
               <div className={`msg-body msg-frame-${messageFrame}`} style={{ '--accent': accent }}>

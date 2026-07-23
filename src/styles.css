@@ -832,14 +832,10 @@ input, textarea, button, select {
 @keyframes scanmove { 0% { transform: translateY(-120%); } 100% { transform: translateY(320%); } }
 @keyframes framepulse {
   0%, 100% {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--accent, var(--green)) 35%, transparent),
-      0 0 10px color-mix(in srgb, var(--accent, var(--green)) 20%, transparent);
+    border-color: color-mix(in srgb, var(--accent, var(--green)) 45%, var(--ink));
   }
   50% {
-    box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--accent, var(--green)) 28%, transparent),
-      0 0 22px color-mix(in srgb, var(--accent, var(--green)) 45%, transparent);
+    border-color: var(--accent, var(--green));
   }
 }
 @keyframes frameshimmer {
@@ -848,15 +844,13 @@ input, textarea, button, select {
 }
 @keyframes frameneon {
   0%, 100% {
-    box-shadow:
-      0 0 4px var(--accent, var(--green)),
-      0 0 12px color-mix(in srgb, var(--accent, var(--green)) 55%, transparent);
+    border-color: color-mix(in srgb, var(--accent, var(--green)) 72%, var(--ink));
+  }
+  35%, 65% {
+    border-color: var(--accent, var(--green));
   }
   50% {
-    box-shadow:
-      0 0 8px var(--accent, var(--green)),
-      0 0 24px color-mix(in srgb, var(--accent, var(--green)) 75%, transparent),
-      inset 0 0 10px color-mix(in srgb, var(--accent, var(--green)) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent, var(--green)) 88%, #fff);
   }
 }
 
@@ -1411,6 +1405,44 @@ button.nav-tile:active { transform: translateY(1px) scale(.985); box-shadow: non
 .conv:hover { background: var(--lime); transform: translateY(-2px); }
 .conv.active { background: var(--lime); box-shadow: none; }
 .conv-name { color: var(--ink); font-weight: 700; }.conv-last { color: var(--ink-800); font-size: 13px; }
+.conv-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.conv-time { flex: 0 0 auto; color: var(--ink-800); font-size: 11px; white-space: nowrap; }
+.conv-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.conv-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+  line-height: 1.35;
+}
+.conv-tag-unread { background: #3d2424; color: #e8958a; }
+.conv-tag-user { background: color-mix(in srgb, var(--ink) 14%, var(--paper)); color: var(--ink-800); }
+.conv-groups { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px 8px; }
+.conv-group-tab {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-800);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.conv-group-tab.active, .conv-group-tab:hover { background: var(--lime); color: var(--ink); }
+.conv-group-block { display: flex; flex-direction: column; gap: 8px; }
+.conv-group-label {
+  padding: 2px 4px 0;
+  color: var(--ink-800);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.conv-meta-body { display: flex; flex-direction: column; gap: 4px; }
 .badge, .tab-badge { background: var(--ink); color: var(--paper); }
 .chat, .friends-view { border: 2px solid var(--ink); border-radius: 16px; background: var(--cream); overflow: hidden; }
 .chat-head { border-bottom: 2px solid var(--ink); background: var(--paper); padding: 12px 14px; }
@@ -1452,15 +1484,13 @@ button.nav-tile:active { transform: translateY(1px) scale(.985); box-shadow: non
     linear-gradient(var(--accent, var(--green)), var(--accent, var(--green))) calc(100% - 10px) calc(100% - 8px) / 3px 16px no-repeat;
 }
 .msg-frame-glow.msg-body {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent, var(--green)) 45%, transparent),
-    0 0 18px color-mix(in srgb, var(--accent, var(--green)) 42%, transparent),
-    inset 0 0 14px color-mix(in srgb, var(--accent, var(--green)) 10%, transparent);
+  border-color: var(--accent, var(--green));
 }
 .msg-frame-dashed.msg-body { border-style: dashed; }
 .msg-frame-double.msg-body {
   border-width: 2px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, var(--green)) 75%, var(--ink));
+  outline: 2px solid color-mix(in srgb, var(--accent, var(--green)) 75%, var(--ink));
+  outline-offset: 2px;
 }
 .msg-frame-scan.msg-body { overflow: hidden; }
 .msg-frame-scan.msg-body::after {

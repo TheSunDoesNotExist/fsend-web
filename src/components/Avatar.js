@@ -16,7 +16,11 @@ export default function Avatar({ name = '?', accent = '#39ff14', frame = 'none',
   const url = avatarUrl(src, version);
   return (
     <span className={cls} style={{ '--accent': accent }} title={name} aria-hidden="true">
-      {url ? <img src={url} alt="" key={url} /> : <span className="avatar-initial">{initial}</span>}
+      {url ? <img src={url} alt="" loading="lazy" decoding="async" /> : <span className="avatar-initial">{initial}</span>}
     </span>
   );
+}
+
+export function avatarVersionOf(user) {
+  return user?.avatar_version || undefined;
 }

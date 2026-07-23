@@ -3,6 +3,18 @@ import api, { devicePayload, tokens } from './api';
 import { useTheme } from './theme';
 
 const AuthCtx = createContext(null);
+const PROFILE_SYNC_MS = 300_000;
+
+function profileChanged(prev, next) {
+  if (!prev || !next) return true;
+  return prev.avatar !== next.avatar
+    || prev.avatar_version !== next.avatar_version
+    || prev.display_name !== next.display_name
+    || prev.ui_theme !== next.ui_theme
+    || prev.accent_color !== next.accent_color
+    || prev.avatar_frame !== next.avatar_frame
+    || prev.message_frame !== next.message_frame;
+}
 
 export function AuthProvider({ children }) {
   const { setTheme } = useTheme();
@@ -13,7 +25,7 @@ export function AuthProvider({ children }) {
     if (!tokens.access) { setLoading(false); return; }
     try {
       const { data } = await api.get('/auth/users/me/');
-      setUser(data);
+      setUser((prev) => (profileChanged(prev, data) ? data : prev));
       if (data.ui_theme) setTheme(data.ui_theme);
     } catch {
       tokens.clear();
@@ -26,7 +38,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user) return undefined;
-    const id = setInterval(loadMe, 15_000);
+    const id = setInterval(loadMe, PROFILE_SYNC_MS);
     return () => clearInterval(id);
   }, [user, loadMe]);
 
