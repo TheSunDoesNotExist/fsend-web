@@ -68,6 +68,7 @@ export default function QrLoginPanel({ onSuccess }) {
         }
       } catch (e) {
         const code = e?.response?.status;
+        if (code === 429) return;
         if (code === 404 || code === 410) {
           if (pollRef.current) clearInterval(pollRef.current);
           setPhase('expired');
