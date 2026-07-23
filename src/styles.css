@@ -1558,10 +1558,29 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
   textarea,
   select { font-size: 16px; }
 
-  /* --vvh выставляет App.js по visualViewport: высота без клавиатуры.
-     Иначе на iOS композер уезжает под клавиатуру. */
-  html, body, #root { height: var(--vvh, 100dvh); }
-  .app { height: 100%; min-height: 0; }
+  html, body, #root {
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .app {
+    position: fixed;
+    top: var(--app-top, 0px);
+    right: 0;
+    left: 0;
+    width: 100%;
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .overlay {
+    top: var(--app-top, 0px);
+    bottom: auto;
+    height: var(--app-height, 100dvh);
+  }
+  .modal {
+    max-height: 100%;
+  }
   .log { overscroll-behavior: contain; }
 }
 
