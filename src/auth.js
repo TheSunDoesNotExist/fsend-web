@@ -25,6 +25,12 @@ export function AuthProvider({ children }) {
   useEffect(() => { loadMe(); }, [loadMe]);
 
   useEffect(() => {
+    if (!user) return undefined;
+    const id = setInterval(loadMe, 15_000);
+    return () => clearInterval(id);
+  }, [user, loadMe]);
+
+  useEffect(() => {
     const onLogout = () => setUser(null);
     window.addEventListener('fsend:logout', onLogout);
     return () => window.removeEventListener('fsend:logout', onLogout);

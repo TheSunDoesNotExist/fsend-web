@@ -4,6 +4,9 @@ export const THEMES = [
   { key: 'matrix', label: 'matrix', labelKey: 'themeMatrix' },
   { key: 'graphite', label: 'dark gray', labelKey: 'themeGraphite' },
   { key: 'paper', label: 'white', labelKey: 'themePaper' },
+  { key: 'lilac', label: 'lilac', labelKey: 'themeLilac' },
+  { key: 'pink', label: 'pink', labelKey: 'themePink' },
+  { key: 'khaki', label: 'khaki', labelKey: 'themeKhaki' },
 ];
 
 const STORAGE_KEY = 'fsend_theme';

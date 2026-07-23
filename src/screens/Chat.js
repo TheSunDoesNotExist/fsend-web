@@ -83,7 +83,7 @@ function parseAttachment(c) {
 function attachmentLabel(att) {
   if (!att) return '';
   if (att.kind === 'voice' || att.kind === 'audio') return 'Голосовушка';
-  if (att.kind === 'video_note') return 'Кружочек';
+  if (att.kind === 'video_note') return 'Квадратыш';
   if (att.kind === 'video') return 'Видео';
   if (att.kind === 'image') return 'Фото';
   return att.name || 'Файл';
@@ -104,12 +104,41 @@ function renderAttachment(att) {
     return <VoiceAttachment att={att} />;
   }
   if (att.kind === 'video_note') {
-    return <div className="attachment video-note"><span>Кружочек</span><video controls playsInline src={att.url} /></div>;
+    return <VideoNoteAttachment att={att} />;
   }
   if (att.kind === 'video') {
     return <div className="attachment video"><video controls playsInline src={att.url} /></div>;
   }
   return <a className="attachment file" href={att.url} target="_blank" rel="noreferrer">{att.name || att.url}</a>;
+}
+
+function VideoNoteAttachment({ att }) {
+  const videoRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  function toggle() {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) video.play().catch(() => {});
+    else video.pause();
+  }
+
+  return (
+    <div className={`attachment video-note ${playing ? 'playing' : ''}`}>
+      <span>Квадратыш</span>
+      <button type="button" className="video-note-frame" onClick={toggle} aria-label={playing ? 'Стоп' : 'Играть'}>
+        <video
+          ref={videoRef}
+          playsInline
+          src={att.url}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+        />
+        <span className="video-note-play">{playing ? '■' : '▶'}</span>
+      </button>
+    </div>
+  );
 }
 
 function VoiceAttachment({ att }) {
@@ -137,7 +166,6 @@ function VoiceAttachment({ att }) {
         <div className="voice-top">
           <span className="voice-title">Голосовушка</span>
           <span className="voice-time">{fmtAudioTime(current)} / {fmtAudioTime(duration)}</span>
-          <a className="voice-link" href={att.url} target="_blank" rel="noreferrer">открыть</a>
         </div>
         <button type="button" className="voice-wave" onClick={toggle} aria-label="Переключить воспроизведение">
           {Array.from({ length: 24 }).map((_, i) => <i key={i} style={{ '--h': `${22 + ((i * 17) % 46)}%` }} />)}
@@ -334,11 +362,18 @@ export default function Chat() {
   const [showBg, setShowBg] = useState(false);
   const [chatBg, setChatBg] = useState(null);
   const [recording, setRecording] = useState(null);
+  const [recordMode, setRecordMode] = useState('voice');
+  const [previewStream, setPreviewStream] = useState(null);
+  const [msgMenu, setMsgMenu] = useState(null);
   const logRef = useRef(null);
   const typingTimer = useRef(null);
   const fileRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const holdTimerRef = useRef(null);
+  const holdActiveRef = useRef(false);
+  const previewRef = useRef(null);
   const [dragging, setDragging] = useState(false);
 
   const active = useMemo(() => convs.find((c) => c.id === activeId), [convs, activeId]);
@@ -446,6 +481,25 @@ export default function Chat() {
   }, [activeId]);
   useEffect(() => { loadBackground(); }, [loadBackground]);
 
+  useEffect(() => {
+    const el = previewRef.current;
+    if (el && previewStream) {
+      el.srcObject = previewStream;
+      el.play().catch(() => {});
+    }
+  }, [previewStream, recording]);
+
+  useEffect(() => {
+    if (!msgMenu) return undefined;
+    const close = () => setMsgMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [msgMenu]);
+
   const refreshLiveData = useCallback(async () => {
     if (document.hidden) return;
     await Promise.allSettled([
@@ -508,6 +562,8 @@ export default function Chat() {
       if (!mine && document.hidden && preference('desktopNotifications') && 'Notification' in window && Notification.permission === 'granted') {
         new Notification(shownName, { body: preference('messagePreview') ? ev.content : (lang === 'ru' ? 'Новое сообщение' : 'New message') });
       }
+    } else if (ev.type === 'message_deleted') {
+      setMessages((prev) => prev.filter((m) => m.id !== ev.message_id));
     } else if (ev.type === 'user_typing') {
       const isMe = ev.user_id != null ? ev.user_id === user.id : ev.user === user.username;
       if (!isMe) setTypingUser(ev.typing ? (ev.display || ev.user) : '');
@@ -592,6 +648,17 @@ export default function Chat() {
       } catch (e2) { setErr(errText(e2)); }
   }
 
+  async function deleteMessage(id, scope) {
+    try {
+      await api.post(`/messages/messages/${id}/delete_message/`, { scope });
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      setMsgMenu(null);
+      setErr('');
+    } catch (e) {
+      setErr(errText(e));
+    }
+  }
+
   async function startRecording(kind) {
     if (!activeId || recording) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
@@ -603,6 +670,8 @@ export default function Chat() {
       const stream = await navigator.mediaDevices.getUserMedia(isVideo
         ? { audio: true, video: { facingMode: 'user', width: { ideal: 360 }, height: { ideal: 360 } } }
         : { audio: true });
+      streamRef.current = stream;
+      if (isVideo) setPreviewStream(stream);
       const mime = isVideo
         ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm')
         : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm');
@@ -618,6 +687,8 @@ export default function Chat() {
       };
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        setPreviewStream(null);
         const cleanMime = mime.split(';')[0];
         const blob = new Blob(chunksRef.current, { type: cleanMime });
         setRecording(null);
@@ -631,9 +702,37 @@ export default function Chat() {
         if (recorder.state === 'recording') recorder.stop();
       }, isVideo ? 30000 : 120000);
     } catch (e) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setPreviewStream(null);
       setRecording(null);
       setErr(e?.message || 'Не удалось начать запись');
     }
+  }
+
+  function onRecordPointerDown() {
+    if (!activeId || recording) return;
+    holdActiveRef.current = false;
+    holdTimerRef.current = window.setTimeout(() => {
+      holdActiveRef.current = true;
+      startRecording(recordMode);
+    }, 220);
+  }
+
+  function onRecordPointerUp() {
+    window.clearTimeout(holdTimerRef.current);
+    if (holdActiveRef.current) {
+      stopRecording();
+    } else if (!recording) {
+      setRecordMode((mode) => (mode === 'voice' ? 'video_note' : 'voice'));
+    }
+    holdActiveRef.current = false;
+  }
+
+  function onRecordPointerLeave() {
+    window.clearTimeout(holdTimerRef.current);
+    if (holdActiveRef.current) stopRecording();
+    holdActiveRef.current = false;
   }
 
   function stopRecording() {
@@ -736,6 +835,7 @@ export default function Chat() {
                   accent={o?.accent_color || '#39ff14'}
                   frame={o?.avatar_frame || 'none'}
                   src={o?.avatar}
+                  version={o?.avatar_version || o?.last_seen || o?.id}
                 />
                 <div className="conv-text">
                   <div className="conv-name">
@@ -758,6 +858,7 @@ export default function Chat() {
                 accent={f.accent_color || '#39ff14'}
                 frame={f.avatar_frame || 'none'}
                 src={f.avatar}
+                version={f.avatar_version || f.last_seen || f.id}
               />
               <div className="conv-text">
                 <div className="conv-name">
@@ -776,6 +877,7 @@ export default function Chat() {
               accent={user.accent_color}
               frame={user.avatar_frame}
               src={user.avatar}
+              version={user.avatar_version || user.last_seen || user.id}
               size="sm"
             />
             <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{personName(user)}</span>
@@ -826,6 +928,7 @@ export default function Chat() {
                   accent={otherOf(active, user)?.accent_color || '#39ff14'}
                   frame={otherOf(active, user)?.avatar_frame || 'none'}
                   src={otherOf(active, user)?.avatar}
+                  version={otherOf(active, user)?.avatar_version || otherOf(active, user)?.last_seen || otherOf(active, user)?.id}
                 />
                 <span className="green">{active.is_secret && '◈ '}{convTitle(active, user, t)}</span>
               </div>
@@ -844,8 +947,12 @@ export default function Chat() {
                 const p = profileOf(m.whoId);
                 const accent = p.accent_color || '#39ff14';
                 return (
-                  <div key={m.id} className={`msg ${m.mine ? 'me' : ''}`}>
-                    <Avatar name={m.who} accent={accent} frame={p.avatar_frame || 'none'} src={p.avatar} size="sm" />
+                  <div key={m.id} className={`msg ${m.mine ? 'me' : ''}`}
+                       onContextMenu={(e) => {
+                         e.preventDefault();
+                         setMsgMenu({ x: e.clientX, y: e.clientY, message: m });
+                       }}>
+                    <Avatar name={m.who} accent={accent} frame={p.avatar_frame || 'none'} src={p.avatar} version={p.avatar_version || p.last_seen || p.id} size="sm" />
                     <div className={`msg-body msg-frame-${p.message_frame || 'none'}`} style={{ '--accent': accent }}>
                       <div className="msg-meta">
                         <span className="ts">[{fmtTime(m.ts)}] </span>
@@ -864,23 +971,42 @@ export default function Chat() {
             <form className="composer" onSubmit={submit}>
               <input ref={fileRef} type="file" multiple hidden
                      onChange={(e) => { uploadFiles(e.target.files); e.target.value = ''; }} />
-              <button type="button" className="btn ghost" title={t('attachFile')}
+              <button type="button" className="btn ghost composer-icon" title={t('attachFile')}
                       onClick={() => fileRef.current?.click()}>📎</button>
-              <button type="button" className={`btn ghost ${recording === 'voice' ? 'rec' : ''}`}
-                      title="Голосовое"
-                      onClick={() => recording === 'voice' ? stopRecording() : startRecording('voice')}>
-                {recording === 'voice' ? '■' : '🎙'}
+              <button
+                type="button"
+                className={`btn ghost composer-icon record-btn ${recording ? 'rec' : ''} ${recordMode === 'video_note' ? 'video-mode' : ''}`}
+                title={recordMode === 'video_note'
+                  ? (lang === 'ru' ? 'Удерживайте — квадратыш · нажмите — голос' : 'Hold — video note · tap — voice')
+                  : (lang === 'ru' ? 'Удерживайте — голос · нажмите — квадратыш' : 'Hold — voice · tap — video note')}
+                onPointerDown={(e) => { e.preventDefault(); onRecordPointerDown(); }}
+                onPointerUp={(e) => { e.preventDefault(); onRecordPointerUp(); }}
+                onPointerCancel={(e) => { e.preventDefault(); onRecordPointerLeave(); }}
+                onPointerLeave={onRecordPointerLeave}
+              >
+                {recording ? '■' : (recordMode === 'video_note' ? '◉' : '🎙')}
               </button>
-              <button type="button" className={`btn ghost ${recording === 'video_note' ? 'rec' : ''}`}
-                      title="Кружочек"
-                      onClick={() => recording === 'video_note' ? stopRecording() : startRecording('video_note')}>
-                {recording === 'video_note' ? '■' : '◉'}
-              </button>
+              <span className="record-mode-hint muted">
+                {recording
+                  ? (recording === 'video_note' ? 'квадратыш' : 'голос')
+                  : (recordMode === 'video_note' ? '◉' : '🎙')}
+              </span>
               <span className="sigil">{personName(user)}$</span>
               <input value={draft} autoFocus placeholder={t('messagePlaceholder')}
                      onChange={(e) => onDraft(e.target.value)} />
               <button className="btn" disabled={!draft.trim() || !activeId}>{t('send')}</button>
             </form>
+            {(recording === 'video_note' || previewStream) && (
+              <div className="record-preview-overlay">
+                <video ref={previewRef} playsInline muted className="record-preview" />
+                <span className="record-preview-label">{lang === 'ru' ? 'Запись квадратыша…' : 'Recording video note…'}</span>
+              </div>
+            )}
+            {recording === 'voice' && (
+              <div className="record-preview-overlay voice-only">
+                <span className="record-preview-label">{lang === 'ru' ? 'Запись голосового…' : 'Recording voice…'}</span>
+              </div>
+            )}
           </>
         )}
         {err && <div className="err" style={{ padding: '4px 14px' }}>! {err}</div>}
@@ -897,6 +1023,21 @@ export default function Chat() {
           onClose={() => setShowBg(false)}
           onChanged={loadBackground}
         />
+      )}
+      {msgMenu && (
+        <>
+          <div className="msg-menu-backdrop" onClick={() => setMsgMenu(null)} aria-hidden="true" />
+          <div className="msg-menu" style={{ top: msgMenu.y, left: msgMenu.x }} role="menu">
+            <button type="button" role="menuitem" onClick={() => deleteMessage(msgMenu.message.id, 'me')}>
+              {lang === 'ru' ? 'Удалить у меня' : 'Delete for me'}
+            </button>
+            {msgMenu.message.mine && (
+              <button type="button" role="menuitem" onClick={() => deleteMessage(msgMenu.message.id, 'everyone')}>
+                {lang === 'ru' ? 'Удалить у всех' : 'Delete for everyone'}
+              </button>
+            )}
+          </div>
+        </>
       )}
       {showSecret && <SecretChatModal
         friends={friends}
@@ -1040,7 +1181,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
               const action = isFriend ? tr('ДРУГ', 'FRIEND') : isOutgoing ? tr('ОЖИДАЕТ', 'PENDING') : isIncoming ? tr('ПРИНЯТЬ', 'ACCEPT') : '+';
               return (
                 <button key={u.id} disabled={busy || isFriend || isOutgoing} onClick={() => addFriend(u)}>
-                  <Avatar name={personName(u)} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} size="sm" />
+                  <Avatar name={personName(u)} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} version={u.avatar_version || u.last_seen || u.id} size="sm" />
                   <span className="friend-search-person"><strong>{personName(u)}</strong><small>{u.is_online ? tr('в сети', 'online') : tr('зарегистрирован', 'registered')}</small></span>
                   <span className="friend-search-action">{action}</span>
                 </button>
@@ -1098,7 +1239,7 @@ function SecretChatModal({ friends, onClose, onCreated }) {
             {friends.length === 0 && <div className="muted">{ru ? 'Сначала добавьте пользователя в друзья.' : 'Add someone as a friend first.'}</div>}
             {friends.map((friend) => (
               <button key={friend.id} className="secret-friend" disabled={busyId !== null} onClick={() => start(friend)}>
-                <Avatar name={personName(friend)} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} />
+                <Avatar name={personName(friend)} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} version={friend.avatar_version || friend.last_seen || friend.id} />
                 <span><strong>{personName(friend)}</strong><small>{friend.is_online ? (ru ? 'в сети' : 'online') : (ru ? 'не в сети' : 'offline')}</small></span>
                 <b>{busyId === friend.id ? '…' : '◈'}</b>
               </button>
@@ -1152,6 +1293,7 @@ function NewChat({ onCreated, me }) {
             accent={u.accent_color || '#39ff14'}
             frame={u.avatar_frame || 'none'}
             src={u.avatar}
+            version={u.avatar_version || u.last_seen || u.id}
             size="sm"
           />
           <div className="conv-text"><div className="conv-name">{personName(u)}</div></div>

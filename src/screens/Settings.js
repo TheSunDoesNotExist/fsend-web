@@ -126,6 +126,7 @@ export default function Settings({ onClose }) {
               frame={avatarFrame}
               size="lg"
               src={avatarPreview || user.avatar}
+              version={user.avatar_version || user.last_seen || user.id}
             />
             <div className="msg me" style={{ animation: 'none', opacity: 1, transform: 'none' }}>
               <div className={`msg-body msg-frame-${messageFrame}`} style={{ '--accent': accent }}>
@@ -269,7 +270,17 @@ export default function Settings({ onClose }) {
                 <button key={f.key}
                         className={`chip ${messageFrame === f.key ? 'active' : ''}`}
                         onClick={() => setMessageFrame(f.key)}>
-                  {ru ? ({ none: 'без рамки', bracket: 'скобки', glow: 'свечение', dashed: 'пунктир', double: 'двойная', scan: 'скан-линия' }[f.key]) : f.label}
+                  {ru ? ({
+                    none: 'без рамки',
+                    bracket: 'скобки',
+                    glow: 'свечение',
+                    dashed: 'пунктир',
+                    double: 'двойная',
+                    scan: 'скан-линия',
+                    pulse: 'пульс',
+                    neon: 'неон',
+                    shimmer: 'перелив',
+                  }[f.key]) : f.label}
                 </button>
               ))}
             </div>

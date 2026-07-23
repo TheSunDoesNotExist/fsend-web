@@ -120,6 +120,9 @@ const DICT = {
     themeMatrix: 'матрица',
     themeGraphite: 'тёмно-серый',
     themePaper: 'светлая',
+    themeLilac: 'лиловая',
+    themePink: 'розовая',
+    themeKhaki: 'хаки',
 
     admin: 'админ',
     users: 'пользователи',
@@ -258,6 +261,9 @@ const DICT = {
     themeMatrix: 'matrix',
     themeGraphite: 'dark gray',
     themePaper: 'white',
+    themeLilac: 'lilac',
+    themePink: 'pink',
+    themeKhaki: 'khaki',
 
     admin: 'admin',
     users: 'users',
