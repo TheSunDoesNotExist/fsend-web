@@ -1,9 +1,36 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import api, { errText } from '../api';
 import { useLang } from '../lang';
 
-const POLL_MS = 2000;
+const QR_CACHE_KEY = 'fsend_qr_session';
+const QR_TTL_MS = 10 * 60 * 1000;
+const POLL_MS = 15 * 1000;
+
+function readCachedSession() {
+  try {
+    const raw = sessionStorage.getItem(QR_CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (!cached?.token || !cached?.pairUrl || !cached?.createdAt) return null;
+    if (Date.now() - cached.createdAt >= QR_TTL_MS) {
+      sessionStorage.removeItem(QR_CACHE_KEY);
+      return null;
+    }
+    return cached;
+  } catch {
+    sessionStorage.removeItem(QR_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeCachedSession(session) {
+  sessionStorage.setItem(QR_CACHE_KEY, JSON.stringify(session));
+}
+
+function clearCachedSession() {
+  sessionStorage.removeItem(QR_CACHE_KEY);
+}
 
 export default function QrLoginPanel({ onSuccess }) {
   const { t } = useLang();
@@ -13,14 +40,34 @@ export default function QrLoginPanel({ onSuccess }) {
   const [phase, setPhase] = useState('loading');
   const [err, setErr] = useState('');
   const pollRef = useRef(null);
-  const sessionRef = useRef(null);
+  const onSuccessRef = useRef(onSuccess);
 
-  async function createSession() {
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  }, [onSuccess]);
+
+  const createSession = useCallback(async (force = false) => {
+    if (!force) {
+      const cached = readCachedSession();
+      if (cached) {
+        setToken(cached.token);
+        setPairUrl(cached.pairUrl);
+        setPhase('ready');
+        return;
+      }
+    }
+
+    clearCachedSession();
     setPhase('loading');
     setErr('');
+    setQrSrc('');
     try {
       const { data } = await api.post('/auth/users/qr_login_create/');
-      sessionRef.current = data.token;
+      writeCachedSession({
+        token: data.token,
+        pairUrl: data.pair_url,
+        createdAt: Date.now(),
+      });
       setToken(data.token);
       setPairUrl(data.pair_url);
       setPhase('ready');
@@ -28,14 +75,14 @@ export default function QrLoginPanel({ onSuccess }) {
       setErr(errText(e));
       setPhase('error');
     }
-  }
+  }, []);
 
   useEffect(() => {
     createSession();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, []);
+  }, [createSession]);
 
   useEffect(() => {
     if (!pairUrl) return undefined;
@@ -56,32 +103,38 @@ export default function QrLoginPanel({ onSuccess }) {
     if (phase !== 'ready' || !token) return undefined;
 
     async function poll() {
+      if (!readCachedSession()) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setPhase('expired');
+        return;
+      }
       try {
         const { data } = await api.get('/auth/users/qr_login_status/', { params: { token } });
         if (data.status === 'approved') {
           if (pollRef.current) clearInterval(pollRef.current);
+          clearCachedSession();
           setPhase('done');
-          onSuccess(data);
+          onSuccessRef.current(data);
         } else if (data.status === 'expired' || data.status === 'invalid' || data.status === 'consumed') {
           if (pollRef.current) clearInterval(pollRef.current);
+          clearCachedSession();
           setPhase('expired');
         }
       } catch (e) {
         const code = e?.response?.status;
-        if (code === 429) return;
         if (code === 404 || code === 410) {
           if (pollRef.current) clearInterval(pollRef.current);
+          clearCachedSession();
           setPhase('expired');
         }
       }
     }
 
-    poll();
     pollRef.current = setInterval(poll, POLL_MS);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [phase, token, onSuccess]);
+  }, [phase, token]);
 
   return (
     <div className="qr-login">
@@ -99,7 +152,7 @@ export default function QrLoginPanel({ onSuccess }) {
       </div>
       <p className="tile-copy">{t('qrLoginHint')}</p>
       {(phase === 'expired' || phase === 'error') && (
-        <button type="button" className="tile-action secondary qr-login-refresh" onClick={createSession}>
+        <button type="button" className="tile-action secondary qr-login-refresh" onClick={() => createSession(true)}>
           {t('qrRefresh')}  ↻
         </button>
       )}

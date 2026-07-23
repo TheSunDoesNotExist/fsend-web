@@ -44,7 +44,7 @@ const DICT = {
 
     qrLoginEyebrow: 'НОВОЕ УСТРОЙСТВО / НЕОБЯЗАТЕЛЬНО',
     qrLoginTitle: 'ВХОД ПО QR',
-    qrLoginHint: 'Откройте Fsend на телефоне → Устройства → Сканировать QR.',
+    qrLoginHint: 'Откройте Fsend на телефоне → Устройства → Сканировать QR. Код действует 10 минут.',
     qrLoading: 'Генерируем QR…',
     qrApproved: 'Вход подтверждён',
     qrExpired: 'QR-код истёк',
@@ -182,7 +182,7 @@ const DICT = {
 
     qrLoginEyebrow: 'NEW DEVICE / OPTIONAL',
     qrLoginTitle: 'LOGIN WITH QR',
-    qrLoginHint: 'Open Fsend on your phone → Devices → Scan QR.',
+    qrLoginHint: 'Open Fsend on your phone → Devices → Scan QR. The code is valid for 10 minutes.',
     qrLoading: 'Generating QR…',
     qrApproved: 'Login approved',
     qrExpired: 'QR code expired',
