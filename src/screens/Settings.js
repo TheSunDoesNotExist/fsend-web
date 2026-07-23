@@ -35,6 +35,7 @@ export default function Settings({ onClose }) {
   const { theme, setTheme } = useTheme();
   const { lang, setLang, t } = useLang();
   const fileRef = useRef(null);
+  const [displayName, setDisplayName] = useState(user.display_name || user.username || '');
   const [email, setEmail] = useState(user.email || '');
   const [bio, setBio] = useState(user.bio || '');
   const [avatarFrame, setAvatarFrame] = useState(user.avatar_frame || 'none');
@@ -94,6 +95,7 @@ export default function Settings({ onClose }) {
     setBusy(true); setErr(''); setSaved(false);
     try {
       const fd = new FormData();
+      fd.append('display_name', displayName.trim());
       fd.append('email', email.trim());
       fd.append('bio', bio.trim());
       fd.append('avatar_frame', avatarFrame);
@@ -119,7 +121,7 @@ export default function Settings({ onClose }) {
         <div className="modal-body">
           <div className="preview-box">
             <Avatar
-              name={user.username}
+              name={displayName || user.username}
               accent={accent}
               frame={avatarFrame}
               size="lg"
@@ -129,11 +131,29 @@ export default function Settings({ onClose }) {
               <div className={`msg-body msg-frame-${messageFrame}`} style={{ '--accent': accent }}>
                 <div className="msg-meta">
                   <span className="ts">[12:34] </span>
-                  <span className="who">{user.username}</span>
+                  <span className="who">{displayName || user.username}</span>
                   <span className="muted"> $ </span>
                 </div>
                 <div className="msg-content">{t('previewMessage')}</div>
               </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="section-title">{ru ? 'ник' : 'nickname'}</div>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>{ru ? 'ник:' : 'name:'}</label>
+              <input
+                value={displayName}
+                maxLength={64}
+                onChange={(e) => { setDisplayName(e.target.value); setSaved(false); }}
+                placeholder={ru ? 'Как вас видят другие' : 'How others see you'}
+              />
+            </div>
+            <div className="hint muted" style={{ marginTop: 6 }}>
+              ID: <span className="cyan">{user.username}</span> — {ru
+                ? 'постоянный логин, не меняется. По нему вас находят друзья.'
+                : 'permanent login, cannot change. Friends find you by it.'}
             </div>
           </div>
 

@@ -1548,6 +1548,36 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
 
+/* --- Фон чата --------------------------------------------------------- */
+.chat.has-bg {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* вуаль поверх картинки, чтобы текст сообщений оставался читаемым */
+.chat.has-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--chat-scrim, rgba(0, 0, 0, 0.58));
+}
+.chat.has-bg > * { position: relative; z-index: 1; }
+:root[data-theme="paper"] { --chat-scrim: rgba(255, 255, 255, 0.66); }
+:root[data-theme="graphite"] { --chat-scrim: rgba(10, 10, 12, 0.62); }
+
+.bg-preview {
+  height: 168px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background-color: var(--bg-input);
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+}
+
 /* Друзья: стековая раскладка на узких экранах и тач-устройствах.
    Блок намеренно в конце файла — десктопная сетка .friends-view объявлена
    ниже старого мобильного блока и перебивала его на 601–900px. */

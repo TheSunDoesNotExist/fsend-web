@@ -8,6 +8,7 @@ import Terminal from '../components/Terminal';
 import Avatar from '../components/Avatar';
 import Settings from './Settings';
 import Admin from './Admin';
+import ChatBackground, { bgUrl } from './ChatBackground';
 
 const fmtTime = (iso) => {
   const d = new Date(iso);
@@ -176,13 +177,19 @@ function renderContent(c) {
   return c;
 }
 
+// Логин (ID) виден не всегда — сравниваем и ключуем строго по id,
+// а показываем ник (display_name).
+export function personName(p) {
+  if (!p) return '';
+  return p.display_name || p.username || `#${p.id}`;
+}
 function otherOf(conv, me) {
-  return (conv.participants_info || []).find((p) => p.username !== me.username) || null;
+  return (conv.participants_info || []).find((p) => p.id !== me.id) || null;
 }
 function convTitle(conv, me, t) {
   if (conv.type === 'group') return conv.name || `${t('group')}#${conv.id}`;
   const o = otherOf(conv, me);
-  return o ? o.username : `${t('direct')}#${conv.id}`;
+  return o ? personName(o) : `${t('direct')}#${conv.id}`;
 }
 
 function SignalBars() {
@@ -215,7 +222,7 @@ function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew
     <main className="global-menu">
       <section className="tile paper identity-tile">
         <span className="eyebrow">{ru ? 'С ВОЗВРАЩЕНИЕМ / СЕССИЯ ПОДТВЕРЖДЕНА' : 'WELCOME BACK / VERIFIED SESSION'}</span>
-        <h1>{ru ? 'ПРИВЕТ' : 'HELLO'} /<br />{user.username}</h1>
+        <h1>{ru ? 'ПРИВЕТ' : 'HELLO'} /<br />{personName(user)}</h1>
         <time>{now.toLocaleTimeString(ru ? 'ru-RU' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</time>
         <span className="tile-copy">{now.toLocaleDateString(ru ? 'ru-RU' : 'en-US', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
       </section>
@@ -263,7 +270,7 @@ function InfoDashboard({ convs, contacts, requests, lang }) {
         copy={unread ? (ru ? 'Проверить непрочитанные · сверить решения · ответить.' : 'Review unread rooms · verify decisions · reply.') : (ru ? 'Срочных ответов нет. Все диалоги просмотрены.' : 'No urgent replies. Your rooms are up to date.')} />
       <TileCard tone="paper" eyebrow={ru ? 'ПРИВАТНОСТЬ' : 'PRIVACY'} title={ru ? 'ЛОКАЛЬНЫЙ ИИ' : 'LOCAL AI'} copy={ru ? 'Саммари остаются на устройстве. Содержимое диалогов не загружается.' : 'Summaries remain on this device. No dialogue content is uploaded.'} />
       <TileCard tone="sand" eyebrow={ru ? 'ИСТОЧНИК' : 'SOURCE'} title={`${active.length} ${ru ? 'ДИАЛОГОВ' : 'DIALOGUES'}`}>
-        <ul className="source-list">{active.map((conv) => <li key={conv.id}>{conv.name || conv.participants_info?.[0]?.username || `${ru ? 'ЧАТ' : 'ROOM'} ${conv.id}`}</li>)}</ul>
+        <ul className="source-list">{active.map((conv) => <li key={conv.id}>{conv.name || personName(conv.participants_info?.[0]) || `${ru ? 'ЧАТ' : 'ROOM'} ${conv.id}`}</li>)}</ul>
       </TileCard>
       <TileCard tone="lavender" eyebrow={ru ? 'ЭКСПОРТ' : 'EXPORT'} title={ru ? 'КОПИРОВАТЬ ОТЧЁТ +' : 'COPY REPORT +'} copy={ru ? 'Обычный текст · без метаданных.' : 'Plain text · no metadata.'} onClick={() => {
         const report = active.map((conv) => `${conv.name || `${ru ? 'Чат' : 'Room'} ${conv.id}`}: ${messagePreview(conv.last_message?.content)}`).join('\n');
@@ -324,6 +331,8 @@ export default function Chat() {
   const [showSecret, setShowSecret] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showBg, setShowBg] = useState(false);
+  const [chatBg, setChatBg] = useState(null);
   const [recording, setRecording] = useState(null);
   const logRef = useRef(null);
   const typingTimer = useRef(null);
@@ -339,14 +348,14 @@ export default function Chat() {
     [friends, activeFriendId]
   );
 
-  // username -> профиль (рамки/акцент), для рендера аватаров и рамок сообщений
+  // id -> профиль (рамки/акцент), для рендера аватаров и рамок сообщений
   const people = useMemo(() => {
     const map = {};
-    if (user) map[user.username] = user;
-    (active?.participants_info || []).forEach((p) => { map[p.username] = p; });
+    if (user) map[user.id] = user;
+    (active?.participants_info || []).forEach((p) => { map[p.id] = p; });
     return map;
   }, [active, user]);
-  const profileOf = useCallback((username) => people[username] || {}, [people]);
+  const profileOf = useCallback((id) => people[id] || {}, [people]);
 
   const loadConvs = useCallback(async ({ quiet = false } = {}) => {
     try {
@@ -357,7 +366,7 @@ export default function Chat() {
         const next = { ...prev };
         items.forEach((conv) => {
           (conv.participants_info || []).forEach((p) => {
-            if (p.username && p.username !== user.username) next[p.username] = p.is_online;
+            if (p.id && p.id !== user.id) next[p.id] = p.is_online;
           });
         });
         return next;
@@ -365,7 +374,7 @@ export default function Chat() {
     } catch (e) {
       if (!quiet && !isThrottleError(e)) setErr(errText(e));
     }
-  }, [user.username]);
+  }, [user.id]);
   useEffect(() => { loadConvs(); }, [loadConvs]);
 
   const loadContacts = useCallback(async ({ quiet = false } = {}) => {
@@ -376,7 +385,7 @@ export default function Chat() {
       setOnline((prev) => {
         const next = { ...prev };
         items.forEach((item) => {
-          if (item.contact_info?.username) next[item.contact_info.username] = item.contact_info.is_online;
+          if (item.contact_info?.id) next[item.contact_info.id] = item.contact_info.is_online;
         });
         return next;
       });
@@ -410,7 +419,8 @@ export default function Chat() {
       const { data } = await api.get(`/messages/conversations/${activeId}/messages/`, { params: { limit: 100 } });
       setMessages((data.results || []).map((m) => ({
         id: m.id,
-        who: m.sender_info?.username || t('unknown'),
+        whoId: m.sender,
+        who: personName(m.sender_info) || t('unknown'),
         mine: m.sender === user.id,
         content: m.content,
         ts: m.created_at,
@@ -425,6 +435,16 @@ export default function Chat() {
   }, [active?.is_secret, activeId, t, user.id]);
 
   useEffect(() => { loadMessages({ markRead: true }); }, [loadMessages]);
+
+  // Фон конкретного диалога: свой либо чужой общий (решает бэкенд).
+  const loadBackground = useCallback(async () => {
+    if (!activeId) { setChatBg(null); return; }
+    try {
+      const { data } = await api.get(`/messages/conversations/${activeId}/background/`);
+      setChatBg(data.effective);
+    } catch { setChatBg(null); }
+  }, [activeId]);
+  useEffect(() => { loadBackground(); }, [loadBackground]);
 
   const refreshLiveData = useCallback(async () => {
     if (document.hidden) return;
@@ -455,17 +475,17 @@ export default function Chat() {
     };
   }, [refreshLiveData]);
 
-  const updatePresence = useCallback((username, isOnline) => {
-    setOnline((o) => ({ ...o, [username]: isOnline }));
+  const updatePresence = useCallback((userId, isOnline) => {
+    setOnline((o) => ({ ...o, [userId]: isOnline }));
     setContacts((items) => items.map((item) => (
-      item.contact_info?.username === username
+      item.contact_info?.id === userId
         ? { ...item, contact_info: { ...item.contact_info, is_online: isOnline, last_seen: new Date().toISOString() } }
         : item
     )));
     setConvs((items) => items.map((conv) => ({
       ...conv,
       participants_info: (conv.participants_info || []).map((p) => (
-        p.username === username
+        p.id === userId
           ? { ...p, is_online: isOnline, last_seen: new Date().toISOString() }
           : p
       )),
@@ -474,35 +494,40 @@ export default function Chat() {
 
   const onEvent = useCallback((ev) => {
     if (ev.type === 'message') {
+      // sender_id — новый контракт; ev.sender (логин) оставлен для совместимости
+      const mine = ev.sender_id != null ? ev.sender_id === user.id : ev.sender === user.username;
+      const shownName = ev.sender_display || ev.sender || t('unknown');
       setMessages((prev) => prev.some((m) => m.id === ev.id) ? prev : [...prev, {
-        id: ev.id, who: ev.sender, mine: ev.sender === user.username,
+        id: ev.id, whoId: ev.sender_id, who: shownName, mine,
         content: ev.content, ts: ev.timestamp,
       }]);
-      if (ev.sender !== user.username) setTypingUser('');
-      if (ev.sender !== user.username && activeId && !document.hidden && (active?.is_secret || preference('readReceipts'))) {
+      if (!mine) setTypingUser('');
+      if (!mine && activeId && !document.hidden && (active?.is_secret || preference('readReceipts'))) {
         api.post(`/messages/conversations/${activeId}/mark_as_read/`).catch(() => {});
       }
-      if (ev.sender !== user.username && document.hidden && preference('desktopNotifications') && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(ev.sender, { body: preference('messagePreview') ? ev.content : (lang === 'ru' ? 'Новое сообщение' : 'New message') });
+      if (!mine && document.hidden && preference('desktopNotifications') && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(shownName, { body: preference('messagePreview') ? ev.content : (lang === 'ru' ? 'Новое сообщение' : 'New message') });
       }
     } else if (ev.type === 'user_typing') {
-      if (ev.user !== user.username) setTypingUser(ev.typing ? ev.user : '');
+      const isMe = ev.user_id != null ? ev.user_id === user.id : ev.user === user.username;
+      if (!isMe) setTypingUser(ev.typing ? (ev.display || ev.user) : '');
     } else if (ev.type === 'user_status') {
-      updatePresence(ev.user, ev.status === 'online');
+      if (ev.user_id != null) updatePresence(ev.user_id, ev.status === 'online');
     }
-  }, [active?.is_secret, activeId, lang, updatePresence, user.username]);
+  }, [active?.is_secret, activeId, lang, t, updatePresence, user.id, user.username]);
 
   const { status, send } = useChatSocket(section === 'chats' ? activeId : null, onEvent);
 
   const appendApiMessage = useCallback((m) => {
     setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, {
       id: m.id,
-      who: m.sender_info?.username || user.username,
-      mine: m.sender === user.id || m.sender_info?.username === user.username,
+      whoId: m.sender ?? user.id,
+      who: personName(m.sender_info) || personName(user),
+      mine: m.sender === user.id || m.sender_info?.id === user.id,
       content: m.content,
       ts: m.created_at,
     }]);
-  }, [user.id, user.username]);
+  }, [user]);
 
   const sendMessageRest = useCallback(async (content) => {
     const { data } = await api.post('/messages/messages/', {
@@ -640,14 +665,14 @@ export default function Chat() {
     } catch (e) { setErr(errText(e)); }
   }
 
-  const statusText = section === 'friends' ? `${user.username} • ${t('friends')}`
-    : !activeId ? `${user.username} • ${t('idle')}`
-    : status === 'on' ? `${user.username} • ${t('live')}`
+  const statusText = section === 'friends' ? `${personName(user)} • ${t('friends')}`
+    : !activeId ? `${personName(user)} • ${t('idle')}`
+    : status === 'on' ? `${personName(user)} • ${t('live')}`
     : status === 'wait' ? t('connecting') : t('disconnected');
 
-  const shellStatusText = section === 'home' ? `${user.username} · ${lang === 'ru' ? 'ГЛАВНАЯ' : 'HOME'}`
-    : section === 'info' ? `${user.username} · ${lang === 'ru' ? 'ЛОКАЛЬНО' : 'LOCAL'}`
-    : section === 'devices' ? `${user.username} · ${lang === 'ru' ? 'УСТРОЙСТВА' : 'DEVICES'}`
+  const shellStatusText = section === 'home' ? `${personName(user)} · ${lang === 'ru' ? 'ГЛАВНАЯ' : 'HOME'}`
+    : section === 'info' ? `${personName(user)} · ${lang === 'ru' ? 'ЛОКАЛЬНО' : 'LOCAL'}`
+    : section === 'devices' ? `${personName(user)} · ${lang === 'ru' ? 'УСТРОЙСТВА' : 'DEVICES'}`
     : statusText;
   const routeTitle = section === 'home' ? (lang === 'ru' ? 'ГЛАВНАЯ / МЕНЮ' : 'HOME / GLOBAL MENU')
     : section === 'info' ? (lang === 'ru' ? 'ГЛАВНАЯ / ИНФО' : 'HOME / INFO')
@@ -702,7 +727,7 @@ export default function Chat() {
           {section === 'chats' && convs.map((c) => {
             const title = convTitle(c, user, t);
             const o = otherOf(c, user);
-            const isOnline = online[title] ?? o?.is_online;
+            const isOnline = online[o?.id] ?? o?.is_online;
             return (
               <div key={c.id} className={`conv ${c.id === activeId ? 'active' : ''}`}
                    onClick={() => setActiveId(c.id)}>
@@ -729,14 +754,14 @@ export default function Chat() {
             <div key={f.id} className={`conv ${f.id === activeFriend?.id ? 'active' : ''}`}
                  onClick={() => setActiveFriendId(f.id)}>
               <Avatar
-                name={f.username}
+                name={personName(f)}
                 accent={f.accent_color || '#39ff14'}
                 frame={f.avatar_frame || 'none'}
                 src={f.avatar}
               />
               <div className="conv-text">
                 <div className="conv-name">
-                  {f.username}
+                  {personName(f)}
                   {f.is_online && <span className="green">●</span>}
                 </div>
                 <div className="conv-last">{f.is_online ? t('online') : `${t('lastSeenPrefix')} ${fmtLastSeen(f.last_seen, t)}`}</div>
@@ -747,13 +772,13 @@ export default function Chat() {
         <div className="sidebar-head" style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}>
           <div className="row" style={{ gap: 8, minWidth: 0 }}>
             <Avatar
-              name={user.username}
+              name={personName(user)}
               accent={user.accent_color}
               frame={user.avatar_frame}
               src={user.avatar}
               size="sm"
             />
-            <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.username}</span>
+            <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{personName(user)}</span>
           </div>
           <div className="row" style={{ gap: 6 }}>
             <button
@@ -782,7 +807,8 @@ export default function Chat() {
           onRequestsChanged={loadFriendRequests}
         />
       ) : (
-      <div className={`chat ${dragging ? 'drag' : ''}`}
+      <div className={`chat ${dragging ? 'drag' : ''} ${chatBg ? 'has-bg' : ''}`}
+           style={chatBg ? { backgroundImage: `url(${bgUrl(chatBg.image)})` } : undefined}
            onDragOver={(e) => { if (activeId) { e.preventDefault(); setDragging(true); } }}
            onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
            onDrop={onDrop}>
@@ -803,14 +829,19 @@ export default function Chat() {
                 />
                 <span className="green">{active.is_secret && '◈ '}{convTitle(active, user, t)}</span>
               </div>
-              <span className="muted">{active.is_secret
-                ? (lang === 'ru' ? 'секретный · удаление через 5 мин после прочтения' : 'secret · deletes 5 min after reading')
-                : `${messages.length} ${t('messagesShort')}`}</span>
+              <div className="row" style={{ gap: 8 }}>
+                <span className="muted">{active.is_secret
+                  ? (lang === 'ru' ? 'секретный · удаление через 5 мин после прочтения' : 'secret · deletes 5 min after reading')
+                  : `${messages.length} ${t('messagesShort')}`}</span>
+                <button type="button" className="btn ghost sm"
+                        title={lang === 'ru' ? 'Фон чата' : 'Chat background'}
+                        onClick={() => setShowBg(true)}>◨</button>
+              </div>
             </div>
             <div className="log" ref={logRef}>
               {messages.length === 0 && <div className="sys">{t('historyStart')}</div>}
               {messages.map((m) => {
-                const p = profileOf(m.who);
+                const p = profileOf(m.whoId);
                 const accent = p.accent_color || '#39ff14';
                 return (
                   <div key={m.id} className={`msg ${m.mine ? 'me' : ''}`}>
@@ -845,7 +876,7 @@ export default function Chat() {
                       onClick={() => recording === 'video_note' ? stopRecording() : startRecording('video_note')}>
                 {recording === 'video_note' ? '■' : '◉'}
               </button>
-              <span className="sigil">{user.username}$</span>
+              <span className="sigil">{personName(user)}$</span>
               <input value={draft} autoFocus placeholder={t('messagePlaceholder')}
                      onChange={(e) => onDraft(e.target.value)} />
               <button className="btn" disabled={!draft.trim() || !activeId}>{t('send')}</button>
@@ -860,6 +891,13 @@ export default function Chat() {
 
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
+      {showBg && activeId && (
+        <ChatBackground
+          conversationId={activeId}
+          onClose={() => setShowBg(false)}
+          onChanged={loadBackground}
+        />
+      )}
       {showSecret && <SecretChatModal
         friends={friends}
         onClose={() => setShowSecret(false)}
@@ -937,7 +975,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
         {friends.map((friend, index) => (
           <button key={friend.id} className={`friend-tile friend-person tone-${index % 3 === 0 ? 'lavender' : index % 3 === 1 ? 'paper' : 'cream'} ${friend.id === activeFriend?.id ? 'selected' : ''}`} onClick={() => window.matchMedia('(max-width: 900px)').matches ? onStartChat(friend) : onSelect(friend)}>
             <span className="friend-tile-label">{friend.is_online ? tr('В СЕТИ', 'ONLINE') : tr('НЕ В СЕТИ', 'OFFLINE')}</span>
-            <strong>{friend.username}</strong>
+            <strong>{personName(friend)}</strong>
             <p>{friend.is_online ? tr('Проверенный контакт · сейчас в сети.', 'Verified contact · online now.') : `${tr('Последняя активность', 'Last seen')} ${fmtLastSeen(friend.last_seen, t)}.`}</p>
           </button>
         ))}
@@ -946,7 +984,11 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
       <section className="friends-detail-column">
         <div className="friend-tile tone-paper friend-selected-card">
           <span className="friend-tile-label">{tr('ВЫБРАННЫЙ КОНТАКТ', 'SELECTED PERSON')}</span>
-          <strong>{activeFriend?.username || tr('ВЫБЕРИТЕ ДРУГА', 'SELECT A FRIEND')}</strong>
+          <strong>{personName(activeFriend) || tr('ВЫБЕРИТЕ ДРУГА', 'SELECT A FRIEND')}</strong>
+          {/* логин-ID приходит с бэкенда только для друзей */}
+          {activeFriend?.username && (
+            <span className="friend-tile-label" style={{ opacity: 0.75 }}>ID / {activeFriend.username}</span>
+          )}
           <p>{activeFriend ? tr('Проверенный контакт. Прямые сообщения защищены; ключ и рамки профиля сохранены.', 'Trusted contact. Direct messages are protected; profile key and frames are preserved.') : tr('Выберите плитку слева, чтобы открыть контакт.', 'Choose a tile on the left to open a contact.')}</p>
         </div>
         <button className="friend-tile tone-lavender friend-actions-card" disabled={!activeFriend} onClick={() => activeFriend && onStartChat(activeFriend)}>
@@ -968,7 +1010,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
             <div className="friend-request-stack">
               {pendingRequests.map((req) => (
                 <div className="friend-request-tile" key={req.id}>
-                  <strong>+ {req.from_user_info?.username || `#${req.from_user}`}</strong>
+                  <strong>+ {personName(req.from_user_info) || `#${req.from_user}`}</strong>
                   <div className="friend-request-actions">
                     <button disabled={busy} onClick={() => actOnRequest(req, 'accept')}>{t('accept')}</button>
                     {req.status !== 'deferred' && <button disabled={busy} onClick={() => actOnRequest(req, 'defer')}>{t('defer')}</button>}
@@ -983,7 +1025,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
           <span className="friend-tile-label">{tr('ДОБАВИТЬ ДРУГА', 'ADD FRIEND')}</span>
           <strong>{tr('ПОИСК +', 'SEARCH +')}</strong>
           <div className="friend-search-field">
-            <input value={q} aria-label={tr('Поиск зарегистрированных пользователей', 'Search registered users')} placeholder={tr('Найти по логину', 'Find by username')} onChange={(e) => setQ(e.target.value)} />
+            <input value={q} aria-label={tr('Поиск по нику или точному ID', 'Search by nickname or exact ID')} placeholder={tr('Ник или точный ID', 'Nickname or exact ID')} onChange={(e) => setQ(e.target.value)} />
           </div>
           <div className="friend-search-caption">
             {q.trim() ? tr('НАЙДЕНО', 'FOUND') : tr('ЗАРЕГИСТРИРОВАНЫ', 'REGISTERED')} / {String(results.length).padStart(2, '0')}
@@ -998,8 +1040,8 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
               const action = isFriend ? tr('ДРУГ', 'FRIEND') : isOutgoing ? tr('ОЖИДАЕТ', 'PENDING') : isIncoming ? tr('ПРИНЯТЬ', 'ACCEPT') : '+';
               return (
                 <button key={u.id} disabled={busy || isFriend || isOutgoing} onClick={() => addFriend(u)}>
-                  <Avatar name={u.username} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} size="sm" />
-                  <span className="friend-search-person"><strong>{u.username}</strong><small>{u.is_online ? tr('в сети', 'online') : tr('зарегистрирован', 'registered')}</small></span>
+                  <Avatar name={personName(u)} accent={u.accent_color || '#39ff14'} frame={u.avatar_frame || 'none'} src={u.avatar} size="sm" />
+                  <span className="friend-search-person"><strong>{personName(u)}</strong><small>{u.is_online ? tr('в сети', 'online') : tr('зарегистрирован', 'registered')}</small></span>
                   <span className="friend-search-action">{action}</span>
                 </button>
               );
@@ -1056,8 +1098,8 @@ function SecretChatModal({ friends, onClose, onCreated }) {
             {friends.length === 0 && <div className="muted">{ru ? 'Сначала добавьте пользователя в друзья.' : 'Add someone as a friend first.'}</div>}
             {friends.map((friend) => (
               <button key={friend.id} className="secret-friend" disabled={busyId !== null} onClick={() => start(friend)}>
-                <Avatar name={friend.username} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} />
-                <span><strong>{friend.username}</strong><small>{friend.is_online ? (ru ? 'в сети' : 'online') : (ru ? 'не в сети' : 'offline')}</small></span>
+                <Avatar name={personName(friend)} accent={friend.accent_color || '#39ff14'} frame={friend.avatar_frame || 'none'} src={friend.avatar} />
+                <span><strong>{personName(friend)}</strong><small>{friend.is_online ? (ru ? 'в сети' : 'online') : (ru ? 'не в сети' : 'offline')}</small></span>
                 <b>{busyId === friend.id ? '…' : '◈'}</b>
               </button>
             ))}
@@ -1103,16 +1145,16 @@ function NewChat({ onCreated, me }) {
         <label>{t('find')}:</label>
         <input value={q} autoFocus placeholder={t('friendSearchNewPlaceholder')} onChange={(e) => setQ(e.target.value)} />
       </div>
-      {results.filter((u) => u.username !== me.username).map((u) => (
+      {results.filter((u) => u.id !== me.id).map((u) => (
         <div key={u.id} className="conv" onClick={() => !busy && start(u)}>
           <Avatar
-            name={u.username}
+            name={personName(u)}
             accent={u.accent_color || '#39ff14'}
             frame={u.avatar_frame || 'none'}
             src={u.avatar}
             size="sm"
           />
-          <div className="conv-text"><div className="conv-name">{u.username}</div></div>
+          <div className="conv-text"><div className="conv-name">{personName(u)}</div></div>
         </div>
       ))}
       {err && <div className="err">! {err}</div>}
