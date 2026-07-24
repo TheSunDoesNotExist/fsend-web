@@ -241,13 +241,14 @@ function TileCard({ tone = 'paper', eyebrow, title, copy, className = '', onClic
   );
 }
 
-function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew, lang, setLang, logout }) {
+function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew, onAdmin, lang, setLang, logout }) {
   const unread = convs.reduce((total, conv) => total + (conv.unread_count || 0), 0);
   const onlineCount = contacts.filter((item) => item.contact_info?.is_online).length;
   const now = new Date();
   const ru = lang === 'ru';
+  const isAdmin = Boolean(user.is_staff);
   return (
-    <main className="global-menu">
+    <main className={`global-menu${isAdmin ? ' is-admin' : ''}`}>
       <section className="tile paper identity-tile">
         <span className="eyebrow">{ru ? 'С ВОЗВРАЩЕНИЕМ / СЕССИЯ ПОДТВЕРЖДЕНА' : 'WELCOME BACK / VERIFIED SESSION'}</span>
         <h1>{ru ? 'ПРИВЕТ' : 'HELLO'} /<br />{personName(user)}</h1>
@@ -270,6 +271,11 @@ function GlobalMenu({ user, convs, contacts, requests, onOpen, onSettings, onNew
         copy={ru ? `ID ${String(user.id).padStart(4, '0')} · Прямое подключение активно.` : `ID ${String(user.id).padStart(4, '0')} · Direct route active.`} className="menu-profile" onClick={onSettings}>
         <i className="presence-pulse" />
       </TileCard>
+      {isAdmin && (
+        <TileCard tone="sand" eyebrow={ru ? '05 / STAFF' : '05 / STAFF'} title={ru ? 'АДМИН' : 'ADMIN'}
+          copy={ru ? 'Пользователи · инвайты · блокировки · просмотр сообщений.' : 'Users · invites · blocks · message inspection.'}
+          className="menu-admin" onClick={onAdmin} />
+      )}
       <div className="menu-actions">
         <button className="tile-control" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>{lang.toUpperCase()} / {ru ? 'ЯЗЫК' : 'LANGUAGE'}</button>
         <button className="tile-control" onClick={logout}>{ru ? 'ВЫЙТИ / СЕССИЯ' : 'EXIT / SESSION'}</button>
@@ -874,6 +880,7 @@ export default function Chat() {
           onOpen={setSection}
           onSettings={() => setShowSettings(true)}
           onNew={() => setShowSecret(true)}
+          onAdmin={() => setShowAdmin(true)}
           lang={lang}
           setLang={setLang}
           logout={logout}
@@ -1100,11 +1107,11 @@ export default function Chat() {
               >
                 {recording ? '■' : (recordMode === 'video_note' ? '◉' : '🎙')}
               </button>
-              <span className="record-mode-hint muted">
-                {recording
-                  ? (recording === 'video_note' ? 'квадратыш' : 'голос')
-                  : (recordMode === 'video_note' ? '◉' : '🎙')}
-              </span>
+              {recording && (
+                <span className="record-mode-hint muted" aria-live="polite">
+                  {recording === 'video_note' ? (lang === 'ru' ? 'квадратыш' : 'video') : (lang === 'ru' ? 'голос' : 'voice')}
+                </span>
+              )}
               <span className="sigil">{personName(user)}$</span>
               <input value={draft} autoFocus placeholder={t('messagePlaceholder')}
                      onChange={(e) => onDraft(e.target.value)} />
