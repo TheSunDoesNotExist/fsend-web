@@ -1286,7 +1286,26 @@ button.nav-tile:hover { transform: translateY(-2px); filter: brightness(1.02); b
 button.nav-tile:active { transform: translateY(1px) scale(.985); box-shadow: none; transition-duration: 90ms; }
 
 /* authentication */
-.auth-workspace { width: 100%; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 10px; align-items: center; }
+.auth-workspace {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
+  gap: 10px;
+  align-items: stretch;
+}
+.auth-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+.auth-side > * {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .auth-primary { min-height: 590px; padding: 28px; display: flex; flex-direction: column; gap: 12px; }
 .auth-primary h1 { margin: 0; font-size: clamp(54px, 7vw, 88px); line-height: .94; letter-spacing: -3px; }
 .auth-primary > .tile-copy { max-width: 780px; }
@@ -1301,7 +1320,6 @@ button.nav-tile:active { transform: translateY(1px) scale(.985); box-shadow: non
 .tile-action.secondary { background: var(--lavender); }
 .tile-action:hover { transform: translateY(-2px); box-shadow: 0 6px 0 rgba(7,7,9,.22); }
 .tile-action:active { transform: translateY(1px) scale(.985); box-shadow: none; }
-.auth-side { display: grid; gap: 10px; }
 .pair-tile { min-height: 390px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
 .pair-tile h2 { margin: 0; font-size: 28px; }
 .qr-login { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
@@ -1328,8 +1346,15 @@ button.nav-tile:active { transform: translateY(1px) scale(.985); box-shadow: non
 }
 .qr-login-placeholder.ok { color: #275916; font-weight: 700; }
 .qr-login-placeholder.err { color: #8f1f1f; font-weight: 700; }
-.qr-login-refresh { margin-top: 4px; }
-.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qr-login-refresh { margin-top: 4px; width: 100%; }
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+.status-grid > * { min-width: 0; }
 .status-card { min-height: 150px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
 .status-card h2 { margin: 2px 0; font-size: 28px; }
 
@@ -1749,6 +1774,12 @@ button.friend-tile:disabled { cursor: default; opacity: .62; transform: none; }
     line-height: 1.25;
   }
   .auth-side { display: contents; }
+  .auth-workspace > .tile.pair-tile,
+  .auth-workspace > .status-grid {
+    width: 100%;
+    max-width: 100%;
+    align-self: stretch;
+  }
   .pair-tile {
     flex: 0 0 auto;
     min-height: 0;
