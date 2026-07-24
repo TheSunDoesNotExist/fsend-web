@@ -336,16 +336,16 @@ function ConvMetaDialog({ conv, user, t, lang, onClose, onSaved }) {
         <div className="modal-body conv-meta-body">
           <p className="muted">{title}</p>
           <div className="section-title">{t('convGroup')}</div>
-          <div className="field" style={{ marginTop: 8 }}>
+          <div className="field">
             <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder={t('convGroupPlaceholder')} maxLength={64} />
           </div>
-          <div className="section-title" style={{ marginTop: 12 }}>{t('convTags')}</div>
-          <div className="field" style={{ marginTop: 8 }}>
+          <div className="section-title">{t('convTags')}</div>
+          <div className="field">
             <input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder={t('convTagsPlaceholder')} />
           </div>
           <p className="hint muted">{t('convTagsHint')}</p>
           {err && <div className="err">! {err}</div>}
-          <button className="btn primary" disabled={busy} onClick={save} style={{ marginTop: 12 }}>
+          <button className="btn primary" disabled={busy} onClick={save}>
             {busy ? '…' : t('save')}
           </button>
         </div>
@@ -1190,6 +1190,11 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
   useEffect(() => {
     let alive = true;
     const query = q.trim();
+    if (!query) {
+      setResults([]);
+      setSearching(false);
+      return undefined;
+    }
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
@@ -1197,7 +1202,7 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
         if (alive) setResults(data);
       } catch (e) { if (alive && !isThrottleError(e)) setErr(errText(e)); }
       finally { if (alive) setSearching(false); }
-    }, query ? 250 : 0);
+    }, 250);
     return () => { alive = false; clearTimeout(timer); };
   }, [q]);
 
@@ -1293,12 +1298,15 @@ function FriendsDashboard({ friends, activeFriend, onSelect, onStartChat, shared
             <input value={q} aria-label={tr('Поиск по нику или точному ID', 'Search by nickname or exact ID')} placeholder={tr('Ник или точный ID', 'Nickname or exact ID')} onChange={(e) => setQ(e.target.value)} />
           </div>
           <div className="friend-search-caption">
-            {q.trim() ? tr('НАЙДЕНО', 'FOUND') : tr('ЗАРЕГИСТРИРОВАНЫ', 'REGISTERED')} / {String(results.length).padStart(2, '0')}
+            {q.trim()
+              ? `${tr('НАЙДЕНО', 'FOUND')} / ${String(results.length).padStart(2, '0')}`
+              : tr('Введите ник или точный ID', 'Enter nickname or exact ID')}
           </div>
           <div className="friend-search-results" aria-live="polite">
             {searching && <div className="friend-search-empty">{tr('Ищем…', 'Searching…')}</div>}
-            {!searching && results.length === 0 && <div className="friend-search-empty">{tr('Пользователи не найдены.', 'No users found.')}</div>}
-            {!searching && results.map((u) => {
+            {!searching && !q.trim() && <div className="friend-search-empty">{tr('Поиск начнётся после ввода запроса.', 'Start typing to search.')}</div>}
+            {!searching && q.trim() && results.length === 0 && <div className="friend-search-empty">{tr('Пользователи не найдены.', 'No users found.')}</div>}
+            {!searching && q.trim() && results.map((u) => {
               const isFriend = friendIds.has(u.id);
               const isOutgoing = outgoingIds.has(u.id);
               const isIncoming = incomingIds.has(u.id);
@@ -1386,12 +1394,16 @@ function NewChat({ onCreated, me }) {
   useEffect(() => {
     let alive = true;
     const query = q.trim();
+    if (!query) {
+      setResults([]);
+      return undefined;
+    }
     const timer = setTimeout(async () => {
       try {
         const { data } = await api.get('/auth/contacts/search/', { params: { q: query } });
         if (alive) setResults(data);
       } catch (e) { if (alive && !isThrottleError(e)) setErr(errText(e)); }
-    }, query ? 250 : 0);
+    }, 250);
     return () => { alive = false; clearTimeout(timer); };
   }, [q]);
 
@@ -1410,7 +1422,7 @@ function NewChat({ onCreated, me }) {
         <label>{t('find')}:</label>
         <input value={q} autoFocus placeholder={t('friendSearchNewPlaceholder')} onChange={(e) => setQ(e.target.value)} />
       </div>
-      {results.filter((u) => u.id !== me.id).map((u) => (
+      {q.trim() ? results.filter((u) => u.id !== me.id).map((u) => (
         <div key={u.id} className="conv" onClick={() => !busy && start(u)}>
           <Avatar
             name={personName(u)}
@@ -1422,7 +1434,9 @@ function NewChat({ onCreated, me }) {
           />
           <div className="conv-text"><div className="conv-name">{personName(u)}</div></div>
         </div>
-      ))}
+      )) : (
+        <div className="muted" style={{ padding: '8px 2px', fontSize: 12 }}>{t('friendSearchHint')}</div>
+      )}
       {err && <div className="err">! {err}</div>}
     </div>
   );

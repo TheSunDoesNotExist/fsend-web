@@ -98,8 +98,9 @@ const DICT = {
     sent: 'отправлено',
     otherFriends: 'остальные друзья',
     noFriendsYet: 'пока пусто',
-    friendSearchPlaceholder: 'логин',
-    friendSearchNewPlaceholder: 'логин (мин. 2 символа)',
+    friendSearchPlaceholder: 'ник или точный ID',
+    friendSearchNewPlaceholder: 'ник или точный ID',
+    friendSearchHint: 'Введите ник или точный ID для поиска.',
 
     settingsTitle: '~/профиль/настройки',
     language: 'язык',
@@ -247,8 +248,9 @@ const DICT = {
     sent: 'sent',
     otherFriends: 'other friends',
     noFriendsYet: 'empty',
-    friendSearchPlaceholder: 'username',
-    friendSearchNewPlaceholder: 'username (min. 2 chars)',
+    friendSearchPlaceholder: 'nickname or exact ID',
+    friendSearchNewPlaceholder: 'nickname or exact ID',
+    friendSearchHint: 'Enter a nickname or exact ID to search.',
 
     settingsTitle: '~/profile/settings',
     language: 'language',
